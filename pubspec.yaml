@@ -1,0 +1,35 @@
+name: eduhub
+description: A Flutter web project with Firebase
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.1.0 <4.0.0"
+  flutter: ">=3.13.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  firebase_core: ^4.4.0
+  cloud_firestore: ^6.1.2
+  firebase_auth: ^6.1.4
+  cupertino_icons: ^1.0.5
+  image_picker: ^1.0.7
+  firebase_storage: ^13.0.6
+  path_provider: ^2.1.5
+  url_launcher: ^6.2.5
+  intl: ^0.20.2
+  pdf: ^3.10.8
+  printing: ^5.12.0
+  file_picker: ^10.3.10
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/role_bg.jpg
