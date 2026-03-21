@@ -13,7 +13,7 @@ class _LessonQuizPageState extends State<LessonQuizPage> {
   int? selectedAnswer;
   bool showResult = false;
 
-  /// demo question (later you can load from Firestore)
+  /// demo question
   final question = "What is Flutter?";
   final options = [
     "Programming Language",
@@ -24,6 +24,7 @@ class _LessonQuizPageState extends State<LessonQuizPage> {
   final correctIndex = 1;
 
   void submitQuiz() {
+    if (!mounted) return;
     setState(() {
       showResult = true;
     });
@@ -42,16 +43,19 @@ class _LessonQuizPageState extends State<LessonQuizPage> {
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
-            ...List.generate(options.length, (i) {
-              return RadioListTile(
-                title: Text(options[i]),
-                value: i,
-                groupValue: selectedAnswer,
-                onChanged: (value) {
-                  setState(() => selectedAnswer = value);
-                },
-              );
-            }),
+            Column(
+              children: List.generate(options.length, (i) {
+                return RadioListTile<int>(
+                  title: Text(options[i]),
+                  value: i,
+                  groupValue: selectedAnswer,
+                  onChanged: (value) {
+                    if (!mounted) return;
+                    setState(() => selectedAnswer = value);
+                  },
+                );
+              }),
+            ),
             ElevatedButton(onPressed: submitQuiz, child: const Text("Submit")),
             if (showResult)
               Text(

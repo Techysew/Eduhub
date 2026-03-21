@@ -1,15 +1,31 @@
 import 'package:flutter/material.dart';
-import 'student_registration_page.dart';
-import 'tutor_registration_page.dart';
-import 'club_registration_page.dart';
-import 'recruiter_registration_page.dart';
-import 'splash_screen.dart'; // ✅ ADD THIS IMPORT
+import 'registration_page.dart'; // ✅ NEW
+import 'splash_screen.dart';
 
 class RoleSelectionPage extends StatelessWidget {
   const RoleSelectionPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    Widget buildRoleButton(String role, String label) {
+      return SizedBox(
+        width: double.infinity,
+        height: 50,
+        child: ElevatedButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RegistrationPage(role: role),
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF009639),
+          ),
+          child: Text(label),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Select Your Role"),
@@ -29,70 +45,26 @@ class RoleSelectionPage extends StatelessWidget {
             const SizedBox(height: 40),
 
             // STUDENT
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const StudentRegistrationPage()),
-                ),
-                child: const Text("Student"),
-              ),
-            ),
+            buildRoleButton("student", "Student"),
 
             const SizedBox(height: 20),
 
             // TUTOR
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const TutorRegistrationPage()),
-                ),
-                child: const Text("Tutor / Mentor"),
-              ),
-            ),
+            buildRoleButton("tutor", "Tutor / Mentor"),
 
             const SizedBox(height: 20),
 
             // CLUB
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const ClubRegistrationPage()),
-                ),
-                child: const Text("Club"),
-              ),
-            ),
+            buildRoleButton("club", "Club"),
 
             const SizedBox(height: 20),
 
             // RECRUITER
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const RecruiterRegistrationPage()),
-                ),
-                child: const Text("Recruiter"),
-              ),
-            ),
+            buildRoleButton("recruiter", "Recruiter"),
 
             const Spacer(),
 
-            // 🔥 BACK TO LOGIN BUTTON
+            // BACK BUTTON
             TextButton(
               onPressed: () {
                 Navigator.pushAndRemoveUntil(

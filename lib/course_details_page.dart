@@ -20,6 +20,7 @@ class CourseDetailsPage extends StatefulWidget {
 
 class _CourseDetailsPageState extends State<CourseDetailsPage> {
   List<String> completedLessons = [];
+  bool certificateShown = false;
 
   @override
   void initState() {
@@ -27,7 +28,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     _loadCompletedLessons();
   }
 
-  /// ===== LOAD COMPLETED LESSONS FROM ENROLLMENT =====
   void _loadCompletedLessons() {
     final rawCompleted = widget.course["completedLessons"];
 
@@ -36,13 +36,12 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     }
   }
 
-  /// ===== TOGGLE LESSON COMPLETION =====
-  Future<void> toggleLesson(String lessonName, int totalLessons) async {
+  Future<void> toggleLesson(String lessonId, int totalLessons) async {
     setState(() {
-      if (completedLessons.contains(lessonName)) {
-        completedLessons.remove(lessonName);
+      if (completedLessons.contains(lessonId)) {
+        completedLessons.remove(lessonId);
       } else {
-        completedLessons.add(lessonName);
+        completedLessons.add(lessonId);
       }
     });
 
@@ -57,30 +56,60 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
       "progress": progress,
     });
 
-    /// SHOW CERTIFICATE IF 100%
-    if (progress >= 1.0) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CertificatePage(
-            courseName: widget.course["title"]?.toString() ?? "Course",
-          ),
-        ),
-      );
+    if (progress >= 1.0 &&
+        completedLessons.length == totalLessons &&
+        !certificateShown) {
+      certificateShown = true;
+      _showCompletionDialog();
     }
   }
 
-  /// ===== OPEN FILE =====
+  void _showCompletionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: const Text("🎉 Course Completed!"),
+        content: const Text("Download your certificate."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Later"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CertificatePage(
+                    courseName: widget.course["title"]?.toString() ?? "Course",
+                  ),
+                ),
+              );
+            },
+            child: const Text("Get Certificate"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> openFile(String? fileUrl) async {
-    if (fileUrl == null) return;
+    if (fileUrl == null || fileUrl.isEmpty) return;
 
-    final uri = Uri.parse(fileUrl);
+    final uri = Uri.tryParse(fileUrl);
 
-    if (await canLaunchUrl(uri)) {
+    if (uri != null && await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Cannot open file")));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Cannot open file")),
+      );
     }
   }
 
@@ -88,7 +117,19 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
   Widget build(BuildContext context) {
     final String title = widget.course["title"]?.toString() ?? "Course";
     final String tutor = widget.course["tutor"]?.toString() ?? "Tutor";
-    final String courseId = widget.course["courseId"] ?? widget.course["id"];
+
+    /// ✅ SAFE courseId FIX
+    final String courseId = widget.course["courseId"]?.toString() ??
+        widget.course["id"]?.toString() ??
+        "";
+
+    /// ✅ SAFETY CHECK
+    if (courseId.isEmpty) {
+      debugPrint("❌ Missing courseId: ${widget.course}");
+      return const Scaffold(
+        body: Center(child: Text("Invalid course data")),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -100,7 +141,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// COURSE TITLE
             Text(
               title,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -108,8 +148,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
             const SizedBox(height: 10),
             Text("Tutor: $tutor"),
             const SizedBox(height: 25),
-
-            /// LESSON STREAM FROM FIRESTORE
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -129,14 +167,10 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                     return const Center(child: Text("No lessons available"));
                   }
 
-                  /// CALCULATE PROGRESS
-                  double progress = lessonDocs.isEmpty
-                      ? 0
-                      : completedLessons.length / lessonDocs.length;
+                  double progress = completedLessons.length / lessonDocs.length;
 
                   return Column(
                     children: [
-                      /// PROGRESS BAR
                       const Text(
                         "Your Progress",
                         style: TextStyle(
@@ -151,8 +185,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                       const SizedBox(height: 10),
                       Text("${(progress * 100).toInt()}% completed"),
                       const SizedBox(height: 25),
-
-                      /// LESSON LIST
                       Expanded(
                         child: ListView.builder(
                           itemCount: lessonDocs.length,
@@ -160,8 +192,10 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                             final data =
                                 lessonDocs[i].data() as Map<String, dynamic>;
 
-                            final lessonName = data["name"] ?? "Lesson";
-                            final fileUrl = data["fileUrl"];
+                            final lessonId = lessonDocs[i].id;
+                            final lessonName =
+                                data["name"]?.toString() ?? "Lesson";
+                            final fileUrl = data["fileUrl"]?.toString();
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 10),
@@ -172,9 +206,9 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                                     CheckboxListTile(
                                       title: Text(lessonName),
                                       value:
-                                          completedLessons.contains(lessonName),
+                                          completedLessons.contains(lessonId),
                                       onChanged: (_) => toggleLesson(
-                                          lessonName, lessonDocs.length),
+                                          lessonId, lessonDocs.length),
                                     ),
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.end,

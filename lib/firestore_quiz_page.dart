@@ -20,6 +20,7 @@ class _FirestoreQuizPageState extends State<FirestoreQuizPage> {
   bool showResult = false;
   bool isCorrect = false;
 
+  /// ===== LOAD QUIZ DOCUMENT =====
   Future<DocumentSnapshot> loadQuiz() {
     return FirebaseFirestore.instance
         .collection("courses")
@@ -29,7 +30,9 @@ class _FirestoreQuizPageState extends State<FirestoreQuizPage> {
         .get();
   }
 
+  /// ===== SUBMIT QUIZ =====
   void submitQuiz(int correctIndex) {
+    if (!mounted) return;
     setState(() {
       showResult = true;
       isCorrect = selectedAnswer == correctIndex;
@@ -43,44 +46,59 @@ class _FirestoreQuizPageState extends State<FirestoreQuizPage> {
       body: FutureBuilder<DocumentSnapshot>(
         future: loadQuiz(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
 
-          if (!snapshot.data!.exists) {
+          if (snapshot.hasError) {
+            return const Center(child: Text("Error loading quiz"));
+          }
+
+          if (!snapshot.hasData || !snapshot.data!.exists) {
             return const Center(child: Text("No quiz for this lesson"));
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          final question = data["question"];
-          final List options = data["options"];
-          final int correctIndex = data["correctIndex"];
+          final question = data["question"] ?? "No question found";
+          final List options = List.from(data["options"] ?? []);
+          final int correctIndex = data["correctIndex"] ?? 0;
 
           return Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(question,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  question,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 20),
                 ...List.generate(options.length, (i) {
-                  return RadioListTile(
-                    title: Text(options[i]),
+                  return RadioListTile<int>(
+                    title: Text(options[i].toString()),
                     value: i,
                     groupValue: selectedAnswer,
-                    onChanged: (value) =>
-                        setState(() => selectedAnswer = value),
+                    onChanged: (value) {
+                      if (!mounted) return;
+                      setState(() => selectedAnswer = value);
+                    },
                   );
                 }),
                 ElevatedButton(
-                    onPressed: () => submitQuiz(correctIndex),
-                    child: const Text("Submit")),
+                  onPressed: selectedAnswer == null
+                      ? null
+                      : () => submitQuiz(correctIndex),
+                  child: const Text("Submit"),
+                ),
                 if (showResult)
-                  Text(
-                    isCorrect ? "Correct ✅" : "Wrong ❌",
-                    style: const TextStyle(fontSize: 18),
-                  )
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Text(
+                      isCorrect ? "Correct ✅" : "Wrong ❌",
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ),
               ],
             ),
           );

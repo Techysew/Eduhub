@@ -22,7 +22,9 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
 
   void showMessage(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   Future<void> loginUser() async {
@@ -37,23 +39,23 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
     setState(() => isLoading = true);
 
     try {
-      UserCredential cred =
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      // 1️⃣ Sign in
+      UserCredential cred = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
       User user = cred.user!;
-      await user.reload();
+      await user.reload(); // refresh to get latest email verification status
       user = FirebaseAuth.instance.currentUser!;
 
+      // 2️⃣ Check email verification
       if (!user.emailVerified) {
         await FirebaseAuth.instance.signOut();
         setState(() => isLoading = false);
-        showMessage("Verify your email first");
+        showMessage("❌ Your email is not verified. Please check your inbox.");
         return;
       }
 
+      // 3️⃣ Get user data from Firestore
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -72,7 +74,7 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
 
       if (!mounted) return;
 
-      // If multiple roles → show ChooseRolePage
+      // 4️⃣ Navigate based on roles
       if (roles.length > 1) {
         Navigator.pushReplacement(
           context,
@@ -83,18 +85,13 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
         return;
       }
 
-      // If only one role → go directly
       Widget dashboard;
-
       switch (roles.first) {
         case "tutor":
           dashboard = TutorDashboardPage(username: username, roles: roles);
           break;
         case "club":
-          dashboard = ClubDashboardPage(
-            username: username,
-            roles: roles,
-          );
+          dashboard = ClubDashboardPage(username: username, roles: roles);
           break;
         case "recruiter":
           dashboard = RecruiterDashboardPage(username: username, roles: roles);
@@ -102,6 +99,7 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
         default:
           dashboard = StudentDashboardPage(username: username, roles: roles);
       }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => dashboard),
@@ -112,8 +110,13 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
       String msg = "Login failed";
       if (e.code == 'user-not-found') msg = "User not found";
       if (e.code == 'wrong-password') msg = "Incorrect password";
+      if (e.code == 'invalid-email') msg = "Invalid email";
 
       showMessage(msg);
+    } catch (e) {
+      setState(() => isLoading = false);
+      showMessage("An unexpected error occurred. Try again.");
+      print("🔥 Login error: $e"); // for debugging
     }
   }
 
@@ -126,37 +129,39 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
-        child: Column(children: [
-          TextField(
-            controller: emailController,
-            decoration: const InputDecoration(labelText: "Email"),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: passwordController,
-            obscureText: !isPasswordVisible,
-            decoration: InputDecoration(
-              labelText: "Password",
-              suffixIcon: IconButton(
-                icon: Icon(isPasswordVisible
-                    ? Icons.visibility
-                    : Icons.visibility_off),
-                onPressed: () =>
-                    setState(() => isPasswordVisible = !isPasswordVisible),
+        child: Column(
+          children: [
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: "Email"),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: passwordController,
+              obscureText: !isPasswordVisible,
+              decoration: InputDecoration(
+                labelText: "Password",
+                suffixIcon: IconButton(
+                  icon: Icon(isPasswordVisible
+                      ? Icons.visibility
+                      : Icons.visibility_off),
+                  onPressed: () =>
+                      setState(() => isPasswordVisible = !isPasswordVisible),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton(
-            onPressed: isLoading ? null : loginUser,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009639),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: isLoading ? null : loginUser,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF009639),
+              ),
+              child: isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Login"),
             ),
-            child: isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text("Login"),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }

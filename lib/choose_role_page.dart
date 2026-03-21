@@ -9,7 +9,7 @@ import 'recruiter_dashboard_page.dart';
 
 class ChooseRolePage extends StatefulWidget {
   final String username;
-  final List<String>? roles; // Optional, can come from dashboard
+  final List<String>? roles;
 
   const ChooseRolePage({super.key, required this.username, this.roles});
 
@@ -25,11 +25,10 @@ class _ChooseRolePageState extends State<ChooseRolePage> {
   void initState() {
     super.initState();
     if (widget.roles != null && widget.roles!.isNotEmpty) {
-      // Roles passed from dashboard → no need to fetch
       roles = widget.roles!;
       loading = false;
     } else {
-      loadRoles(); // Otherwise, fetch from Firestore
+      loadRoles();
     }
   }
 
@@ -49,12 +48,16 @@ class _ChooseRolePageState extends State<ChooseRolePage> {
         }
       }
 
+      if (!mounted) return;
+
       setState(() => loading = false);
 
       if (roles.length == 1) {
         goToDashboard(roles.first);
       }
     } catch (e) {
+      if (!mounted) return;
+
       setState(() => loading = false);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Error loading roles: $e")));

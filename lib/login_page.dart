@@ -14,8 +14,8 @@ class _LoginPageState extends State<LoginPage> {
 
   bool isLoading = false;
 
-  // LOGIN FUNCTION
   Future<void> loginUser() async {
+    if (!mounted) return;
     setState(() => isLoading = true);
 
     try {
@@ -25,46 +25,48 @@ class _LoginPageState extends State<LoginPage> {
         password: passwordController.text.trim(),
       );
 
+      if (!mounted) return;
+
       User? user = userCredential.user;
 
-      // CHECK EMAIL VERIFIED
       if (user != null && !user.emailVerified) {
         await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Please verify your email first."),
-          ),
+          const SnackBar(content: Text("Please verify your email first.")),
         );
         return;
       }
 
-      // SUCCESS → GO TO DASHBOARD
+      if (!mounted) return;
+
       Navigator.pushReplacementNamed(context, "/dashboard");
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? "Login failed")),
       );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  // RESEND VERIFICATION EMAIL
   Future<void> resendVerificationEmail() async {
     try {
       await FirebaseAuth.instance.currentUser?.sendEmailVerification();
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Verification email sent."),
-        ),
+        const SnackBar(content: Text("Verification email sent.")),
       );
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error sending verification email."),
-        ),
+        const SnackBar(content: Text("Error sending verification email.")),
       );
     }
   }
@@ -84,16 +86,12 @@ class _LoginPageState extends State<LoginPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 30),
-
             const Text(
               "Welcome Back",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 30),
-
-            // EMAIL
             TextField(
               controller: emailController,
               decoration: InputDecoration(
@@ -103,10 +101,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
-            // PASSWORD
             TextField(
               controller: passwordController,
               obscureText: true,
@@ -117,10 +112,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // LOGIN BUTTON
             ElevatedButton(
               onPressed: isLoading ? null : loginUser,
               style: ElevatedButton.styleFrom(
@@ -134,10 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextStyle(fontSize: 18, color: Colors.white),
                     ),
             ),
-
             const SizedBox(height: 10),
-
-            // RESEND EMAIL
             TextButton(
               onPressed: resendVerificationEmail,
               child: const Text("Resend Verification Email"),

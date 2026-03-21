@@ -17,7 +17,6 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
   final passwordController = TextEditingController();
 
   bool isLoading = false;
-
   bool hasUppercase = false;
   bool hasLowercase = false;
   bool hasNumber = false;
@@ -45,7 +44,7 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
         .collection("users")
         .where("username", isEqualTo: username)
         .get();
-
+    if (!mounted) return false;
     return query.docs.isEmpty;
   }
 
@@ -71,6 +70,7 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
     setState(() => isLoading = true);
 
     final available = await isUsernameAvailable(username);
+    if (!mounted) return;
     if (!available) {
       setState(() => isLoading = false);
       showMessage("Username already taken, choose another");
@@ -83,24 +83,24 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
         email: email,
         password: password,
       );
+      if (!mounted) return;
 
       final user = cred.user;
       if (user == null) throw Exception("User creation failed");
 
-      // New user → save role and send verification email
       await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
         "username": username,
         "email": email,
         "roles": ["recruiter"]
       });
-
-      await user.sendEmailVerification();
-      await FirebaseAuth.instance.signOut();
-      setState(() => isLoading = false);
-
       if (!mounted) return;
 
-      // Dialog → verification email sent → redirect to SplashScreen
+      await user.sendEmailVerification();
+      if (!mounted) return;
+
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -111,7 +111,7 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // close dialog
+                Navigator.of(context).pop();
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const SplashScreen()),
                   (route) => false,
@@ -122,8 +122,10 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
           ],
         ),
       );
+      if (!mounted) return;
+      setState(() => isLoading = false);
     } on FirebaseAuthException catch (e) {
-      // Email already exists → check role
+      // Handle email-already-in-use with role check
       if (e.code == "email-already-in-use") {
         try {
           UserCredential cred =
@@ -131,12 +133,14 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
             email: email,
             password: password,
           );
+          if (!mounted) return;
 
           final uid = cred.user!.uid;
           final doc = await FirebaseFirestore.instance
               .collection("users")
               .doc(uid)
               .get();
+          if (!mounted) return;
 
           List roles = [];
           if (doc.exists) {
@@ -144,7 +148,6 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
             roles = data["roles"] ?? [];
 
             if (roles.contains("recruiter")) {
-              // Role already exists → show message → redirect to SplashScreen
               await showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -155,7 +158,7 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
                   actions: [
                     TextButton(
                       onPressed: () {
-                        Navigator.of(context).pop(); // close dialog
+                        Navigator.of(context).pop();
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                               builder: (_) => const SplashScreen()),
@@ -167,13 +170,14 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
                   ],
                 ),
               );
+              if (!mounted) return;
             } else {
-              // Role does not exist → add role → show message → redirect to SplashScreen
               roles.add("recruiter");
               await FirebaseFirestore.instance
                   .collection("users")
                   .doc(uid)
                   .update({"roles": roles});
+              if (!mounted) return;
 
               await showDialog(
                 context: context,
@@ -185,7 +189,7 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
                   actions: [
                     TextButton(
                       onPressed: () {
-                        Navigator.of(context).pop(); // close dialog
+                        Navigator.of(context).pop();
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                               builder: (_) => const SplashScreen()),
@@ -197,20 +201,22 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
                   ],
                 ),
               );
+              if (!mounted) return;
             }
           }
 
           await FirebaseAuth.instance.signOut();
+          if (!mounted) return;
           setState(() => isLoading = false);
           return;
         } catch (_) {
+          if (!mounted) return;
           setState(() => isLoading = false);
           showMessage(
               "Email already exists. Use correct password to add role.");
           return;
         }
       }
-
       setState(() => isLoading = false);
       showMessage("Registration failed");
     } catch (e) {
@@ -239,53 +245,55 @@ class _RecruiterRegistrationPageState extends State<RecruiterRegistrationPage> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(children: [
-          TextField(
-            controller: usernameController,
-            decoration: const InputDecoration(labelText: "Username"),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: emailController,
-            decoration: const InputDecoration(labelText: "Email"),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: passwordController,
-            obscureText: !isPasswordVisible,
-            onChanged: checkPasswordRules,
-            decoration: InputDecoration(
-              labelText: "Password",
-              suffixIcon: IconButton(
-                icon: Icon(isPasswordVisible
-                    ? Icons.visibility
-                    : Icons.visibility_off),
-                onPressed: () =>
-                    setState(() => isPasswordVisible = !isPasswordVisible),
+        child: Column(
+          children: [
+            TextField(
+              controller: usernameController,
+              decoration: const InputDecoration(labelText: "Username"),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: "Email"),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: passwordController,
+              obscureText: !isPasswordVisible,
+              onChanged: checkPasswordRules,
+              decoration: InputDecoration(
+                labelText: "Password",
+                suffixIcon: IconButton(
+                  icon: Icon(isPasswordVisible
+                      ? Icons.visibility
+                      : Icons.visibility_off),
+                  onPressed: () =>
+                      setState(() => isPasswordVisible = !isPasswordVisible),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          passwordRuleRow(hasMinLength, "Minimum 8 characters"),
-          passwordRuleRow(hasUppercase, "At least 1 uppercase letter"),
-          passwordRuleRow(hasLowercase, "At least 1 lowercase letter"),
-          passwordRuleRow(hasNumber, "At least 1 number"),
-          passwordRuleRow(hasSpecialChar, "At least 1 special character"),
-          const SizedBox(height: 25),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: isLoading ? null : registerUser,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF009639),
+            const SizedBox(height: 10),
+            passwordRuleRow(hasMinLength, "Minimum 8 characters"),
+            passwordRuleRow(hasUppercase, "At least 1 uppercase letter"),
+            passwordRuleRow(hasLowercase, "At least 1 lowercase letter"),
+            passwordRuleRow(hasNumber, "At least 1 number"),
+            passwordRuleRow(hasSpecialChar, "At least 1 special character"),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : registerUser,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF009639),
+                ),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Register"),
               ),
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Register"),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }

@@ -38,6 +38,9 @@ class CoursesPage extends StatelessWidget {
 
     final exists = await alreadyEnrolled(courseId);
 
+    // ✅ FIX 1: check after async gap
+    if (!context.mounted) return;
+
     if (exists) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Already enrolled in this course")),
@@ -55,6 +58,9 @@ class CoursesPage extends StatelessWidget {
       "progress": 0.0,
       "enrolledAt": Timestamp.now(),
     });
+
+    // ✅ FIX 2: check again after async gap
+    if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Enrolled successfully")),
