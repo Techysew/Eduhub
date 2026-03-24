@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'login_page.dart';
+import 'universal_login_page.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   const VerifyEmailPage({super.key});
@@ -64,7 +64,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const LoginPage()),
+            MaterialPageRoute(builder: (_) => const UniversalLoginPage()),
           );
         });
       }
@@ -90,7 +90,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const LoginPage()),
+      MaterialPageRoute(builder: (_) => const UniversalLoginPage()),
     );
   }
 
