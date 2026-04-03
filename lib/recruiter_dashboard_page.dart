@@ -23,6 +23,7 @@ class _RecruiterDashboardPageState extends State<RecruiterDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false, // ❌ removes back arrow
         title: const Text("Recruiter Dashboard"),
         backgroundColor: const Color(0xFF009639),
       ),

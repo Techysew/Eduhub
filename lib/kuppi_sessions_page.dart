@@ -18,7 +18,7 @@ class _KuppiSessionsPageState extends State<KuppiSessionsPage> {
 
     final uri = Uri.parse(link);
     if (await canLaunchUrl(uri)) {
-      launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication); // ✅ FIXED
     }
   }
 
@@ -28,62 +28,65 @@ class _KuppiSessionsPageState extends State<KuppiSessionsPage> {
       appBar: AppBar(title: const Text("Kuppi Sessions")),
       body: Column(
         children: [
-          /// SEARCH BAR
+          /// SEARCH
           Padding(
             padding: const EdgeInsets.all(10),
             child: TextField(
               decoration: const InputDecoration(
-                hintText: "Search by subject / topic / tutor",
+                hintText: "Search sessions...",
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
               ),
-              onChanged: (value) {
-                setState(() => searchText = value.toLowerCase());
-              },
+              onChanged: (value) =>
+                  setState(() => searchText = value.toLowerCase()),
             ),
           ),
 
-          /// SESSION LIST
+          /// LIST
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection("kuppi_sessions")
-                  .where("isDeleted", isEqualTo: false) // ✅ hide deleted
-                  .orderBy("dateTime")
-                  .snapshots(),
+                  .where("isDeleted", isEqualTo: false)
+                  .snapshots(), // ✅ removed orderBy
+
               builder: (context, snapshot) {
-                if (!snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                      child: Text("No Kuppi sessions available"));
                 }
 
                 final docs = snapshot.data!.docs;
 
-                /// SAFE SEARCH FILTER
                 final filtered = docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
 
-                  final title = (data["title"] ?? "").toString().toLowerCase();
-                  final subject =
-                      (data["subject"] ?? "").toString().toLowerCase();
-                  final topic = (data["topic"] ?? "").toString().toLowerCase();
-                  final tutor =
-                      (data["tutorName"] ?? "").toString().toLowerCase();
-
-                  return title.contains(searchText) ||
-                      subject.contains(searchText) ||
-                      topic.contains(searchText) ||
-                      tutor.contains(searchText);
+                  return (data["title"] ?? "")
+                          .toString()
+                          .toLowerCase()
+                          .contains(searchText) ||
+                      (data["subject"] ?? "")
+                          .toString()
+                          .toLowerCase()
+                          .contains(searchText) ||
+                      (data["topic"] ?? "")
+                          .toString()
+                          .toLowerCase()
+                          .contains(searchText) ||
+                      (data["tutorName"] ?? "")
+                          .toString()
+                          .toLowerCase()
+                          .contains(searchText);
                 }).toList();
-
-                if (filtered.isEmpty) {
-                  return const Center(child: Text("No sessions found"));
-                }
 
                 return ListView.builder(
                   itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final doc = filtered[index];
-                    final data = doc.data() as Map<String, dynamic>;
+                  itemBuilder: (_, i) {
+                    final data = filtered[i].data() as Map<String, dynamic>;
 
                     return Card(
                       margin: const EdgeInsets.all(10),
@@ -99,14 +102,17 @@ class _KuppiSessionsPageState extends State<KuppiSessionsPage> {
                             Text("Topic: ${data["topic"] ?? ""}"),
                             Text("Tutor: ${data["tutorName"] ?? ""}"),
                             Text(
-                                "Date: ${DateFormat.yMMMd().format((data["dateTime"] as Timestamp).toDate())}"),
+                              "Date: ${DateFormat.yMMMd().format(
+                                (data["dateTime"] as Timestamp).toDate(),
+                              )}",
+                            ),
                             const SizedBox(height: 10),
                             Row(
                               children: [
                                 ElevatedButton(
                                   onPressed: () =>
                                       openLink(data["zoomLink"] ?? ""),
-                                  child: const Text("Join Session"),
+                                  child: const Text("Join"),
                                 ),
                                 const SizedBox(width: 10),
                                 if ((data["materials"] ?? "").isNotEmpty)
@@ -114,7 +120,7 @@ class _KuppiSessionsPageState extends State<KuppiSessionsPage> {
                                     onPressed: () =>
                                         openLink(data["materials"]),
                                     child: const Text("Materials"),
-                                  )
+                                  ),
                               ],
                             )
                           ],

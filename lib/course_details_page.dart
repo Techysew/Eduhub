@@ -20,7 +20,6 @@ class CourseDetailsPage extends StatefulWidget {
 
 class _CourseDetailsPageState extends State<CourseDetailsPage> {
   List<String> completedLessons = [];
-  bool certificateShown = false;
 
   @override
   void initState() {
@@ -28,76 +27,55 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     _loadCompletedLessons();
   }
 
+  /// ✅ LOAD COMPLETED LESSONS
   void _loadCompletedLessons() {
     final rawCompleted = widget.course["completedLessons"];
 
     if (rawCompleted is List) {
-      completedLessons = rawCompleted.map((e) => e.toString()).toList();
+      completedLessons = rawCompleted.map((e) => e.toString()).toSet().toList();
     }
   }
 
-  Future<void> toggleLesson(String lessonId, int totalLessons) async {
+  /// ✅ TOGGLE LESSON + FIX PROGRESS
+  Future<void> toggleLesson(String lessonId, String courseId) async {
     setState(() {
       if (completedLessons.contains(lessonId)) {
         completedLessons.remove(lessonId);
       } else {
         completedLessons.add(lessonId);
       }
+
+      completedLessons = completedLessons.toSet().toList();
     });
 
-    double progress =
-        totalLessons == 0 ? 0 : completedLessons.length / totalLessons;
+    /// 🔥 GET LESSONS FROM FIRESTORE
+    final lessonSnapshot = await FirebaseFirestore.instance
+        .collection("courses")
+        .doc(courseId)
+        .collection("lessons")
+        .get();
 
+    final lessonIds = lessonSnapshot.docs.map((doc) => doc.id).toSet();
+
+    /// 🔥 FILTER VALID LESSONS ONLY
+    final validCompleted =
+        completedLessons.where((id) => lessonIds.contains(id)).toList();
+
+    /// 🔥 CALCULATE PROGRESS
+    double progress =
+        lessonIds.isEmpty ? 0 : validCompleted.length / lessonIds.length;
+
+    /// 🔥 UPDATE FIRESTORE
     await FirebaseFirestore.instance
         .collection("enrollments")
         .doc(widget.enrollmentId)
         .update({
-      "completedLessons": completedLessons,
+      "completedLessons": validCompleted,
       "progress": progress,
     });
-
-    if (progress >= 1.0 &&
-        completedLessons.length == totalLessons &&
-        !certificateShown) {
-      certificateShown = true;
-      _showCompletionDialog();
-    }
   }
 
-  void _showCompletionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-        title: const Text("🎉 Course Completed!"),
-        content: const Text("Download your certificate."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Later"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CertificatePage(
-                    courseName: widget.course["title"]?.toString() ?? "Course",
-                  ),
-                ),
-              );
-            },
-            child: const Text("Get Certificate"),
-          ),
-        ],
-      ),
-    );
-  }
-
+  /// ✅ OPEN FILE
   Future<void> openFile(String? fileUrl) async {
     if (fileUrl == null || fileUrl.isEmpty) return;
 
@@ -115,19 +93,14 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String title = widget.course["title"]?.toString() ?? "Course";
-    final String tutor = widget.course["tutor"]?.toString() ?? "Tutor";
+    final title = widget.course["title"] ?? "Course";
+    final tutor = widget.course["tutor"] ?? "Tutor";
 
-    /// ✅ SAFE courseId FIX
-    final String courseId = widget.course["courseId"]?.toString() ??
-        widget.course["id"]?.toString() ??
-        "";
+    final courseId = widget.course["courseId"] ?? widget.course["id"] ?? "";
 
-    /// ✅ SAFETY CHECK
     if (courseId.isEmpty) {
-      debugPrint("❌ Missing courseId: ${widget.course}");
       return const Scaffold(
-        body: Center(child: Text("Invalid course data")),
+        body: Center(child: Text("Invalid course")),
       );
     }
 
@@ -138,118 +111,182 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text("Tutor: $tutor"),
-            const SizedBox(height: 25),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection("courses")
-                    .doc(courseId)
-                    .collection("lessons")
-                    .orderBy("createdAt")
-                    .snapshots(),
-                builder: (_, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection("courses")
+              .doc(courseId)
+              .collection("lessons")
+              .orderBy("createdAt")
+              .snapshots(),
+          builder: (_, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                  final lessonDocs = snapshot.data!.docs;
+            final lessonDocs = snapshot.data!.docs;
 
-                  if (lessonDocs.isEmpty) {
-                    return const Center(child: Text("No lessons available"));
-                  }
+            /// ✅ FILTER VALID COMPLETED
+            final validCompleted = completedLessons
+                .where((id) => lessonDocs.any((doc) => doc.id == id))
+                .toList();
 
-                  double progress = completedLessons.length / lessonDocs.length;
+            double progress = lessonDocs.isEmpty
+                ? 0
+                : validCompleted.length / lessonDocs.length;
 
-                  return Column(
-                    children: [
-                      const Text(
-                        "Your Progress",
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                /// TITLE
+                Text(
+                  title,
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 5),
+                Text("Tutor: $tutor"),
+
+                const SizedBox(height: 20),
+
+                /// PROGRESS
+                const Text(
+                  "Your Progress",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 10),
+
+                LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 10,
+                ),
+
+                const SizedBox(height: 5),
+
+                Text("${(progress * 100).toInt()}% completed"),
+
+                const SizedBox(height: 15),
+
+                /// 🎓 CERTIFICATE BUTTON
+                if (progress == 1.0)
+                  Center(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.workspace_premium),
+                      label: const Text("Download Certificate"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
                       ),
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(
-                        value: progress.clamp(0.0, 1.0),
-                        minHeight: 10,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      const SizedBox(height: 10),
-                      Text("${(progress * 100).toInt()}% completed"),
-                      const SizedBox(height: 25),
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: lessonDocs.length,
-                          itemBuilder: (_, i) {
-                            final data =
-                                lessonDocs[i].data() as Map<String, dynamic>;
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CertificatePage(
+                              courseName: widget.course["title"] ?? "Course",
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
-                            final lessonId = lessonDocs[i].id;
-                            final lessonName =
-                                data["name"]?.toString() ?? "Lesson";
-                            final fileUrl = data["fileUrl"]?.toString();
+                const SizedBox(height: 20),
 
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: Column(
-                                  children: [
-                                    CheckboxListTile(
-                                      title: Text(lessonName),
-                                      value:
-                                          completedLessons.contains(lessonId),
-                                      onChanged: (_) => toggleLesson(
-                                          lessonId, lessonDocs.length),
+                /// LESSON LIST
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: lessonDocs.length,
+                    itemBuilder: (_, i) {
+                      final lessonId = lessonDocs[i].id;
+                      final data = lessonDocs[i].data() as Map<String, dynamic>;
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ExpansionTile(
+                          title: Text(data["name"] ?? "Lesson"),
+                          leading: Checkbox(
+                            value: validCompleted.contains(lessonId),
+                            onChanged: (_) => toggleLesson(lessonId, courseId),
+                          ),
+                          children: [
+                            /// 📂 MATERIALS
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection("courses")
+                                  .doc(courseId)
+                                  .collection("lessons")
+                                  .doc(lessonId)
+                                  .collection("materials")
+                                  .snapshots(),
+                              builder: (_, materialSnap) {
+                                if (!materialSnap.hasData) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: Center(
+                                        child: CircularProgressIndicator()),
+                                  );
+                                }
+
+                                final materials = materialSnap.data!.docs;
+
+                                if (materials.isEmpty) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child: Text("No materials uploaded"),
+                                  );
+                                }
+
+                                return Column(
+                                  children: materials.map((mat) {
+                                    final data =
+                                        mat.data() as Map<String, dynamic>;
+
+                                    final fileUrl = data["fileUrl"];
+
+                                    return ListTile(
+                                      leading:
+                                          const Icon(Icons.insert_drive_file),
+                                      title: Text(data["fileName"] ?? "File"),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.download),
+                                        onPressed: () => openFile(fileUrl),
+                                      ),
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            /// 🧠 QUIZ
+                            ElevatedButton(
+                              child: const Text("Take Quiz"),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => FirestoreQuizPage(
+                                      courseId: courseId,
+                                      lessonName: data["name"] ?? "",
                                     ),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        if (fileUrl != null)
-                                          ElevatedButton.icon(
-                                            icon: const Icon(Icons.download),
-                                            label: const Text("Open File"),
-                                            onPressed: () => openFile(fileUrl),
-                                          ),
-                                        const SizedBox(width: 10),
-                                        ElevatedButton(
-                                          child: const Text("Take Quiz"),
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    FirestoreQuizPage(
-                                                  courseId: courseId,
-                                                  lessonName: lessonName,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    )
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+                                  ),
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 10),
+                          ],
                         ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

@@ -31,26 +31,60 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
   bool loading = false;
 
-  /// ================= PICK DATE =================
-  Future<void> pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-      initialDate: DateTime.now(),
-    );
+  /// ================= GET TUTOR COURSES =================
+  Stream<QuerySnapshot> getTutorCourses() {
+    final user = FirebaseAuth.instance.currentUser;
 
-    if (date != null) setState(() => selectedDate = date);
+    return FirebaseFirestore.instance
+        .collection("courses")
+        .where("tutorId", isEqualTo: user?.uid)
+        .where("isDeleted", isEqualTo: false)
+        .snapshots();
   }
 
-  /// ================= PICK TIME =================
-  Future<void> pickTime() async {
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
+  /// ================= GET TUTOR SESSIONS =================
+  Stream<QuerySnapshot> getTutorSessions() {
+    final user = FirebaseAuth.instance.currentUser;
 
-    if (time != null) setState(() => selectedTime = time);
+    return FirebaseFirestore.instance
+        .collection("kuppi_sessions")
+        .where("tutorId", isEqualTo: user?.uid)
+        .where("isDeleted", isEqualTo: false)
+        .orderBy("dateTime")
+        .snapshots();
+  }
+
+  /// ================= DELETE COURSE =================
+  Future<void> deleteCourse(String id) async {
+    await FirebaseFirestore.instance
+        .collection("courses")
+        .doc(id)
+        .update({"isDeleted": true});
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Course deleted")),
+    );
+  }
+
+  /// ================= DELETE SESSION =================
+  Future<void> deleteSession(String id) async {
+    await FirebaseFirestore.instance
+        .collection("kuppi_sessions")
+        .doc(id)
+        .update({"isDeleted": true});
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Session deleted")),
+    );
+  }
+
+  /// ================= LOGOUT =================
+  Future<void> logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   /// ================= ADD COURSE =================
@@ -83,7 +117,7 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
         "sessionDate": sessionDateTime,
         "sessionLink": sessionLinkController.text.trim(),
         "createdAt": Timestamp.now(),
-        "isDeleted": false, // ✅ IMPORTANT
+        "isDeleted": false,
       });
 
       clearFields();
@@ -113,37 +147,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
     selectedTime = null;
   }
 
-  /// ================= SOFT DELETE COURSE =================
-  Future<void> deleteCourse(String id) async {
-    await FirebaseFirestore.instance
-        .collection("courses")
-        .doc(id)
-        .update({"isDeleted": true});
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Course deleted")),
-    );
-  }
-
-  /// ================= GET TUTOR COURSES =================
-  Stream<QuerySnapshot> getTutorCourses() {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return FirebaseFirestore.instance
-        .collection("courses")
-        .where("tutorId", isEqualTo: user?.uid)
-        .where("isDeleted", isEqualTo: false) // hide deleted
-        .snapshots();
-  }
-
-  /// ================= LOGOUT =================
-  Future<void> logout() async {
-    await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
-    Navigator.pop(context);
-  }
-
   /// ================= ADD COURSE DIALOG =================
   void showAddCourseDialog() {
     showDialog(
@@ -163,46 +166,12 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
               ),
               TextField(
                 controller: contentController,
-                decoration: const InputDecoration(
-                    labelText: "Course Content / Outline"),
+                decoration: const InputDecoration(labelText: "Course Content"),
               ),
               TextField(
                 controller: priceController,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: "Price (0 = free)"),
-              ),
-
-              const SizedBox(height: 15),
-
-              /// DATE
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(selectedDate == null
-                        ? "Select Session Date"
-                        : selectedDate.toString().split(" ")[0]),
-                  ),
-                  TextButton(onPressed: pickDate, child: const Text("Pick"))
-                ],
-              ),
-
-              /// TIME
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(selectedTime == null
-                        ? "Select Session Time"
-                        : selectedTime!.format(context)),
-                  ),
-                  TextButton(onPressed: pickTime, child: const Text("Pick"))
-                ],
-              ),
-
-              TextField(
-                controller: sessionLinkController,
-                decoration: const InputDecoration(
-                    labelText: "Meeting Link (Zoom/WebRTC)"),
+                decoration: const InputDecoration(labelText: "Price"),
               ),
             ],
           ),
@@ -222,12 +191,14 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
     );
   }
 
+  /// ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Tutor Dashboard"),
         backgroundColor: const Color(0xFF009639),
+        automaticallyImplyLeading: false,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: showAddCourseDialog,
@@ -238,70 +209,128 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
         child: Column(
           children: [
             Text(
-              "Welcome, ${widget.username}!",
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              "Welcome, ${widget.username}",
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 20),
 
-            /// COURSE LIST
+            /// 🔥 MAIN CONTENT
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: getTutorCourses(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    /// ================= COURSES =================
+                    const Text(
+                      "My Courses",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
 
-                  final courses = snapshot.data!.docs;
+                    const SizedBox(height: 10),
 
-                  if (courses.isEmpty) {
-                    return const Center(child: Text("No courses created yet"));
-                  }
+                    StreamBuilder<QuerySnapshot>(
+                      stream: getTutorCourses(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
 
-                  return ListView.builder(
-                    itemCount: courses.length,
-                    itemBuilder: (context, index) {
-                      final course = courses[index];
-                      final data = course.data() as Map<String, dynamic>;
+                        final courses = snapshot.data!.docs;
 
-                      return Card(
-                        child: ListTile(
-                          title: Text(data["title"] ?? ""),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(data["description"] ?? ""),
-                              Text("Price: Rs ${data["price"] ?? 0}"),
-                            ],
-                          ),
+                        if (courses.isEmpty) {
+                          return const Text("No courses yet");
+                        }
 
-                          /// OPEN LESSONS
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ManageLessonsPage(courseId: course.id),
+                        return Column(
+                          children: courses.map((course) {
+                            final data = course.data() as Map<String, dynamic>;
+
+                            return Card(
+                              child: ListTile(
+                                title: Text(data["title"] ?? ""),
+                                subtitle: Text(data["description"] ?? ""),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ManageLessonsPage(
+                                          courseId: course.id),
+                                    ),
+                                  );
+                                },
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () => deleteCourse(course.id),
+                                ),
                               ),
                             );
-                          },
+                          }).toList(),
+                        );
+                      },
+                    ),
 
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => deleteCourse(course.id),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                    const SizedBox(height: 25),
+
+                    /// ================= KUPPI SESSIONS =================
+                    const Text(
+                      "My Kuppi Sessions",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    StreamBuilder<QuerySnapshot>(
+                      stream: getTutorSessions(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+
+                        final sessions = snapshot.data!.docs;
+
+                        if (sessions.isEmpty) {
+                          return const Text("No sessions yet");
+                        }
+
+                        return Column(
+                          children: sessions.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+
+                            return Card(
+                              child: ListTile(
+                                title: Text(data["title"] ?? ""),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("Subject: ${data["subject"] ?? ""}"),
+                                    Text("Topic: ${data["topic"] ?? ""}"),
+                                  ],
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () => deleteSession(doc.id),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
 
-            /// CREATE SESSION
+            /// CREATE SESSION BUTTON
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -320,44 +349,28 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 10),
 
             /// LOGOUT
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: logout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF009639),
-                ),
-                child: const Text("Logout"),
-              ),
+            ElevatedButton(
+              onPressed: logout,
+              child: const Text("Logout"),
             ),
 
-            const SizedBox(height: 15),
-
             /// SWITCH ROLE
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChooseRolePage(
-                        username: widget.username,
-                        roles: widget.roles,
-                      ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChooseRolePage(
+                      username: widget.username,
+                      roles: widget.roles,
                     ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[700],
-                ),
-                child: const Text("Switch Role"),
-              ),
+                  ),
+                );
+              },
+              child: const Text("Switch Role"),
             ),
           ],
         ),

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 
 class ManageLessonsPage extends StatefulWidget {
@@ -32,23 +31,40 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
     try {
       String? fileUrl;
 
+      /// Ask user if they want to upload file
       if (await _confirmUpload()) {
         fileUrl = await uploadFile();
       }
 
-      await FirebaseFirestore.instance
+      /// ✅ CREATE LESSON (NO fileUrl here)
+      final lessonRef = await FirebaseFirestore.instance
           .collection("courses")
           .doc(widget.courseId)
           .collection("lessons")
           .add({
         "name": lessonName,
-        "fileUrl": fileUrl,
         "createdAt": Timestamp.now(),
       });
 
+      /// ✅ ADD FILE TO MATERIALS SUBCOLLECTION
+      if (fileUrl != null) {
+        await lessonRef.collection("materials").add({
+          "fileUrl": fileUrl,
+          "fileName": lessonName,
+          "createdAt": Timestamp.now(),
+        });
+      }
+
       lessonController.clear();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Lesson added successfully")),
+      );
     } catch (e) {
       print(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error adding lesson: $e")),
+      );
     } finally {
       setState(() => loading = false);
     }
@@ -115,13 +131,12 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
       if (filePath == null) return null;
 
       final file = File(filePath);
-
       final fileName = result.files.single.name;
 
       final ref =
           FirebaseStorage.instance.ref("courses/${widget.courseId}/$fileName");
 
-      await ref.putFile(file); // ✅ FIXED (no memory freeze)
+      await ref.putFile(file);
 
       return await ref.getDownloadURL();
     } catch (e) {
@@ -130,7 +145,7 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
     }
   }
 
-  /// ================= ASK USER IF THEY WANT TO UPLOAD FILE =================
+  /// ================= CONFIRM FILE UPLOAD =================
   Future<bool> _confirmUpload() async {
     bool upload = false;
 
@@ -166,6 +181,7 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
       appBar: AppBar(title: const Text("Manage Lessons")),
       body: Column(
         children: [
+          /// ================= ADD LESSON UI =================
           Padding(
             padding: const EdgeInsets.all(10),
             child: Row(
@@ -186,6 +202,8 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
               ],
             ),
           ),
+
+          /// ================= LESSON LIST =================
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -208,11 +226,13 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
                 return ListView(
                   children: docs.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
-                    final fileUrl = data["fileUrl"];
 
                     return ListTile(
                       title: Text(data["name"] ?? ""),
-                      subtitle: fileUrl != null ? Text("File uploaded") : null,
+
+                      /// ✅ UPDATED TEXT (no fileUrl anymore)
+                      subtitle: const Text("Tap to manage lesson materials"),
+
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -226,6 +246,8 @@ class _ManageLessonsPageState extends State<ManageLessonsPage> {
                           ),
                         ],
                       ),
+
+                      /// 👉 OPEN MATERIAL PAGE
                       onTap: () {
                         Navigator.push(
                           context,

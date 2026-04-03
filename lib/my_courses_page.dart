@@ -13,7 +13,6 @@ class MyCoursesPage extends StatefulWidget {
 class _MyCoursesPageState extends State<MyCoursesPage> {
   final String? uid = FirebaseAuth.instance.currentUser?.uid;
 
-  /// ================= GET ENROLLED COURSES =================
   Stream<QuerySnapshot> getMyCourses() {
     return FirebaseFirestore.instance
         .collection("enrollments")
@@ -21,7 +20,6 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
         .snapshots();
   }
 
-  /// ================= OPEN COURSE (LATER CONNECT) =================
   void openCourse(String id, Map<String, dynamic> course) {
     Navigator.push(
       context,
@@ -34,7 +32,6 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
     );
   }
 
-  /// ================= UNENROLL COURSE =================
   Future<void> removeCourse(String enrollmentId) async {
     await FirebaseFirestore.instance
         .collection("enrollments")
@@ -58,20 +55,17 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: getMyCourses(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          final courses = snapshot.data!.docs;
+
+          if (courses.isEmpty) {
             return const Center(
-              child: Text(
-                "No enrolled courses yet",
-                style: TextStyle(fontSize: 18),
-              ),
+              child: Text("No enrolled courses"),
             );
           }
-
-          final courses = snapshot.data!.docs;
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -80,27 +74,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
               final doc = courses[index];
               final data = doc.data() as Map<String, dynamic>;
 
-              final courseId = data["courseId"];
-
-              return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance
-                    .collection("courses")
-                    .doc(courseId)
-                    .get(),
-                builder: (context, courseSnap) {
-                  if (!courseSnap.hasData) return const SizedBox();
-
-                  // course deleted or not exists → hide
-                  if (!courseSnap.data!.exists ||
-                      (courseSnap.data!.data()
-                              as Map<String, dynamic>)["isDeleted"] ==
-                          true) {
-                    return const SizedBox();
-                  }
-
-                  return buildCourseCard(data, doc.id);
-                },
-              );
+              return buildCourseCard(data, doc.id);
             },
           );
         },
@@ -108,59 +82,32 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
     );
   }
 
-  /// ================= COURSE CARD =================
   Widget buildCourseCard(Map<String, dynamic> course, String enrollmentId) {
     final title = course["title"] ?? "Course";
     final tutor = course["tutor"] ?? "Tutor";
     final lessons = course["lessons"] ?? 0;
-    final progress = (course["progress"] ?? 0.0).toDouble();
+
+    /// ✅ CLAMP FIX (IMPORTANT)
+    final progress = (course["progress"] ?? 0.0).toDouble().clamp(0.0, 1.0);
 
     return Card(
-      elevation: 4,
       margin: const EdgeInsets.only(bottom: 15),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// COURSE TITLE
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 5),
-
-            /// TUTOR
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             Text("Tutor: $tutor"),
-
-            const SizedBox(height: 5),
-
-            /// LESSON COUNT
             Text("Lessons: $lessons"),
-
-            const SizedBox(height: 12),
-
-            /// PROGRESS BAR
+            const SizedBox(height: 10),
             LinearProgressIndicator(
               value: progress,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(10),
             ),
-
-            const SizedBox(height: 8),
-
             Text("${(progress * 100).toInt()}% completed"),
-
-            const SizedBox(height: 12),
-
-            /// ACTION BUTTONS
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -173,7 +120,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                   child: const Text("Remove"),
                 ),
               ],
-            ),
+            )
           ],
         ),
       ),

@@ -141,6 +141,7 @@ class _ClubDashboardPageState extends State<ClubDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false, // ❌ removes back arrow
         title: const Text("Club Dashboard"),
         backgroundColor: const Color(0xFF009639),
       ),

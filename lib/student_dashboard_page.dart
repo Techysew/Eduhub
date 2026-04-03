@@ -146,6 +146,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false, // ❌ removes back arrow
         title: const Text("Student Dashboard"),
         backgroundColor: const Color(0xFF009639),
         actions: [
