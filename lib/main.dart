@@ -4,10 +4,21 @@ import 'splash_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
+  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  try {
+    // Attempt to initialize Firebase
+    debugPrint("Starting Firebase initialization...");
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("Firebase initialization complete.");
+  } catch (e) {
+    // Log the error if Firebase fails to initialize
+    debugPrint("Firebase initialization failed: $e");
+  }
+
   runApp(const MyApp());
 }
 
@@ -19,13 +30,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'EduHub',
-
-      // Routes can still exist, but dashboard now expects username dynamically
-      routes: {
-        // "/dashboard": (context) => const StudentDashboardPage(username: 'user'),
-        // It's better to navigate to dashboard after login with username
-      },
-
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF009639)),
+        useMaterial3: true,
+      ),
       home: const SplashScreen(),
     );
   }

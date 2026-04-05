@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import 'services/auth_service.dart'; // Updated import path
 import 'verify_email_page.dart';
 
 class RegistrationPage extends StatefulWidget {
@@ -42,7 +42,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
     });
   }
 
-  // ✅ ✅ FIXED REGISTER METHOD
   Future<void> register() async {
     final username = usernameController.text.trim();
     final email = emailController.text.trim();
@@ -70,8 +69,6 @@ class _RegistrationPageState extends State<RegistrationPage> {
       password: password,
       role: widget.role,
     );
-
-    print("REGISTER RESULT: $result"); // 🔥 DEBUG PRINT
 
     setState(() => isLoading = false);
 
@@ -101,7 +98,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
         showMessage("❌ Weak password");
         break;
       default:
-        showMessage("❌ $result"); // 🔥 SHOW REAL ERROR
+        showMessage("❌ $result"); 
     }
   }
 
@@ -169,7 +166,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 ),
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Register"),
+                    : const Text("Register", style: TextStyle(color: Colors.white)),
               ),
             ),
           ],
