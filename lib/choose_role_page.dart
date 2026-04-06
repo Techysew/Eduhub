@@ -9,9 +9,12 @@ import 'recruiter_dashboard_page.dart';
 
 class ChooseRolePage extends StatefulWidget {
   final String username;
-  final List<String>? roles;
 
-  const ChooseRolePage({super.key, required this.username, this.roles});
+  const ChooseRolePage({
+    super.key,
+    required this.username,
+    required List<String> roles,
+  });
 
   @override
   State<ChooseRolePage> createState() => _ChooseRolePageState();
@@ -24,43 +27,25 @@ class _ChooseRolePageState extends State<ChooseRolePage> {
   @override
   void initState() {
     super.initState();
-    if (widget.roles != null && widget.roles!.isNotEmpty) {
-      roles = widget.roles!;
-      loading = false;
-    } else {
-      loadRoles();
-    }
+    loadRoles();
   }
 
   Future<void> loadRoles() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = FirebaseAuth.instance.currentUser!.uid;
 
-      final doc =
-          await FirebaseFirestore.instance.collection("users").doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection("users").doc(uid).get();
 
-      final data = doc.data();
-      if (data != null) {
-        if (data["roles"] != null) {
-          roles = List<String>.from(data["roles"]);
-        } else if (data["role"] != null) {
-          roles = [data["role"]];
-        }
-      }
+    if (doc.exists) {
+      roles = List<String>.from(doc["roles"] ?? []);
+    }
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      setState(() => loading = false);
+    setState(() => loading = false);
 
-      if (roles.length == 1) {
-        goToDashboard(roles.first);
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => loading = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error loading roles: $e")));
+    if (roles.length == 1) {
+      goToDashboard(roles.first);
     }
   }
 
@@ -99,7 +84,10 @@ class _ChooseRolePageState extends State<ChooseRolePage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Choose Your Role")),
+      appBar: AppBar(
+        title: const Text("Choose Your Role"),
+        backgroundColor: const Color(0xFF009639),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -110,13 +98,12 @@ class _ChooseRolePageState extends State<ChooseRolePage> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () => goToDashboard(role),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[700],
+                    backgroundColor: const Color(0xFF009639),
                   ),
+                  onPressed: () => goToDashboard(role),
                   child: Text(
                     "Continue as ${role.toUpperCase()}",
-                    style: const TextStyle(fontSize: 18),
                   ),
                 ),
               ),

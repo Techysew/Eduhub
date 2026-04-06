@@ -11,11 +11,11 @@ class AuthService {
         .doc(username)
         .get();
 
-    return !doc.exists; // if username doc does not exist, it's available
+    return !doc.exists;
   }
 
   // ===============================
-  // 🔹 Register new user (SECURE)
+  // 🔹 Register new user
   // ===============================
   static Future<String?> registerUser({
     required String username,
@@ -28,56 +28,111 @@ class AuthService {
       final available = await isUsernameAvailable(username);
       if (!available) return "USERNAME_TAKEN";
 
-      // 2️⃣ Create user in Firebase Auth
-      UserCredential cred = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
+      UserCredential cred;
+
+      try {
+        // 2️⃣ Try creating new user
+        cred = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(email: email, password: password);
+      } on FirebaseAuthException catch (e) {
+        // If email already exists → sign in instead
+        if (e.code == "email-already-in-use") {
+          cred = await FirebaseAuth.instance
+              .signInWithEmailAndPassword(email: email, password: password);
+        } else {
+          rethrow;
+        }
+      }
 
       final user = cred.user;
       if (user == null) return "USER_CREATION_FAILED";
 
-      await user.reload(); // ✅ ensure token is active
+      final userDoc =
+          FirebaseFirestore.instance.collection("users").doc(user.uid);
 
-      // 3️⃣ Save user data in Firestore (UID-based security)
-      await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
-        "username": username,
-        "email": email,
-        "roles": [role],
-        "createdAt": FieldValue.serverTimestamp(),
-      });
+      final docSnapshot = await userDoc.get();
 
-      // 4️⃣ Save username in separate collection for availability checks
-      await FirebaseFirestore.instance
-          .collection("usernames")
-          .doc(username)
-          .set({"uid": user.uid});
+      if (docSnapshot.exists) {
+        // 🔹 User exists → add new role
+        List<String> roles =
+            List<String>.from(docSnapshot.data()?["roles"] ?? []);
 
-      // 5️⃣ Send verification email
-      try {
+        if (!roles.contains(role)) {
+          roles.add(role);
+          await userDoc.update({"roles": roles});
+        }
+
+        return "ROLE_ADDED";
+      } else {
+        // 🔹 New user → create Firestore document
+        await userDoc.set({
+          "username": username,
+          "email": email,
+          "roles": [role],
+          "createdAt": FieldValue.serverTimestamp(),
+        });
+
+        // Save username for availability checking
+        await FirebaseFirestore.instance
+            .collection("usernames")
+            .doc(username)
+            .set({"uid": user.uid});
+
+        // Send verification email
         await user.sendEmailVerification();
-        print("✅ Verification email sent to $email");
-      } catch (e) {
-        print("⚠️ Email send failed: $e");
-      }
 
-      return "SUCCESS";
+        return "SUCCESS";
+      }
     } on FirebaseAuthException catch (e) {
-      print("🔥 FirebaseAuthException: ${e.code} - ${e.message}");
-      if (e.code == "email-already-in-use") return "EMAIL_EXISTS";
       if (e.code == "invalid-email") return "INVALID_EMAIL";
       if (e.code == "weak-password") return "WEAK_PASSWORD";
-      return "AUTH_ERROR: ${e.message}";
+      if (e.code == "wrong-password") return "WRONG_PASSWORD";
+      return "AUTH_ERROR";
     } catch (e) {
-      print("🔥 Unknown error: $e");
-      return "ERROR: $e";
+      return "ERROR";
     }
   }
 
   // ===============================
-  // 🔹 Check email verified
+  // 🔹 Add new role to existing logged-in user
+  // ===============================
+  static Future<String?> addRole(String newRole) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return "NOT_LOGGED_IN";
+
+      final userDoc =
+          FirebaseFirestore.instance.collection("users").doc(user.uid);
+
+      final docSnapshot = await userDoc.get();
+      if (!docSnapshot.exists) return "USER_DATA_NOT_FOUND";
+
+      List<String> roles =
+          List<String>.from(docSnapshot.data()?["roles"] ?? []);
+
+      if (roles.contains(newRole)) {
+        return "ROLE_ALREADY_EXISTS";
+      }
+
+      roles.add(newRole);
+
+      await userDoc.update({
+        "roles": roles,
+      });
+
+      return "ROLE_ADDED_SUCCESS";
+    } catch (e) {
+      return "ERROR";
+    }
+  }
+
+  // ===============================
+  // 🔹 Check if email verified
   // ===============================
   static Future<bool> isEmailVerified() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
+
     await user.reload();
     return user.emailVerified;
   }

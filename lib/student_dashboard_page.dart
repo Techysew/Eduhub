@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'choose_role_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'kuppi_sessions_page.dart';
 
-// 👉 later connect pages here
+import '../services/auth_service.dart';
+import '../choose_role_page.dart';
+import 'kuppi_sessions_page.dart';
 import 'my_courses_page.dart';
 import 'courses_page.dart';
-import 'programs_by_clubs_page.dart'; // NEW IMPORT
+import 'programs_by_clubs_page.dart';
 
 class StudentDashboardPage extends StatefulWidget {
   final String username;
@@ -112,7 +112,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     Navigator.pop(context);
   }
 
-  /// ================= NAVIGATION HELPERS =================
+  /// ================= NAVIGATION =================
   void openMyCourses() {
     Navigator.push(
       context,
@@ -129,7 +129,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
   void openTutorials() {}
 
-  /// ⭐ UPDATED: Programs by Clubs
   void openProgramsByClubs() {
     Navigator.push(
       context,
@@ -142,11 +141,45 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   void openAssignments() {}
   void openAchievements() {}
 
+  /// ================= ADD ROLE & REDIRECT =================
+  Future<void> addRoleAndRedirect(String role) async {
+    final result = await AuthService.addRole(role);
+
+    if (result == "ROLE_ADDED_SUCCESS") {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+
+      final doc =
+          await FirebaseFirestore.instance.collection("users").doc(uid).get();
+
+      final data = doc.data();
+
+      if (data != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChooseRolePage(
+              username: data["username"],
+              roles: List<String>.from(data["roles"] ?? []),
+            ),
+          ),
+        );
+      }
+    } else if (result == "ROLE_ALREADY_EXISTS") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You already have this role")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Something went wrong")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false, // ❌ removes back arrow
+        automaticallyImplyLeading: false,
         title: const Text("Student Dashboard"),
         backgroundColor: const Color(0xFF009639),
         actions: [
@@ -158,7 +191,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// ================= PROFILE =================
+            /// PROFILE
             GestureDetector(
               onTap: pickImage,
               child: Stack(
@@ -185,10 +218,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               "Welcome, ${widget.username}!",
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const Text("Tap photo to change profile picture"),
             const SizedBox(height: 25),
 
-            /// ================= PERFORMANCE CARD =================
+            /// PERFORMANCE CARD
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -209,55 +241,27 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                       minHeight: 10,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(height: 15),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        statItem("Completed", completedCourses.toString()),
-                        statItem("Points", points.toString()),
-                        statItem("Progress", "${(performance * 100).toInt()}%"),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(height: 25),
 
-            /// ================= MENU =================
             buildMenuButton(Icons.book, "My Courses", openMyCourses),
             buildMenuButton(
                 Icons.auto_awesome, "Recommended Courses", openRecommended),
             buildMenuButton(
                 Icons.video_library, "Tutorials / Resources", openTutorials),
-
-            /// ⭐ THIS IS UPDATED
             buildMenuButton(
                 Icons.live_tv, "Programs by Clubs", openProgramsByClubs),
-
             buildMenuButton(Icons.assignment, "Assignments", openAssignments),
             buildMenuButton(
                 Icons.emoji_events, "Achievements / Badges", openAchievements),
 
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.school),
-                label: const Text("Join Kuppi Sessions"),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const KuppiSessionsPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
             const SizedBox(height: 30),
 
-            /// ================= LOGOUT =================
+            /// LOGOUT
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -269,9 +273,33 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                 child: const Text("Logout"),
               ),
             ),
+
             const SizedBox(height: 15),
 
-            /// ================= SWITCH ROLE =================
+            if (!widget.roles.contains("club"))
+              buildMenuButton(
+                Icons.groups,
+                "Add Club Role",
+                () => addRoleAndRedirect("club"),
+              ),
+
+            if (!widget.roles.contains("tutor"))
+              buildMenuButton(
+                Icons.menu_book,
+                "Add Tutor Role",
+                () => addRoleAndRedirect("tutor"),
+              ),
+
+            if (!widget.roles.contains("recruiter"))
+              buildMenuButton(
+                Icons.business_center,
+                "Add Recruiter Role",
+                () => addRoleAndRedirect("recruiter"),
+              ),
+
+            const SizedBox(height: 10),
+
+            /// SWITCH ROLE
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -288,7 +316,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[700],
+                  backgroundColor: Colors.orange,
                 ),
                 child: const Text("Switch Role"),
               ),
@@ -299,23 +327,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
-  /// ================= STAT ITEM =================
-  Widget statItem(String title, String value) {
-    return Column(
-      children: [
-        Text(value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        Text(title),
-      ],
-    );
-  }
-
-  /// ⭐ UPDATED MENU BUTTON (WITH NAVIGATION)
-  Widget buildMenuButton(
-    IconData icon,
-    String title,
-    VoidCallback onTap,
-  ) {
+  Widget buildMenuButton(IconData icon, String title, VoidCallback onTap) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ElevatedButton(
