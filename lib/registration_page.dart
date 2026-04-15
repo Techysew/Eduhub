@@ -98,7 +98,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
         showMessage("❌ Weak password");
         break;
       default:
-        showMessage("❌ $result"); 
+        showMessage("❌ $result");
     }
   }
 
@@ -119,6 +119,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
       appBar: AppBar(
         title: Text("Register as ${widget.role}"),
         backgroundColor: const Color(0xFF009639),
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -166,7 +167,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 ),
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Register", style: TextStyle(color: Colors.white)),
+                    : const Text("Register",
+                        style: TextStyle(color: Colors.white)),
               ),
             ),
           ],

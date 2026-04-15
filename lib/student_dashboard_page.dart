@@ -1,3 +1,6 @@
+import 'package:eduhub/add_achievement_page.dart';
+import 'package:eduhub/chat_list_page.dart';
+import 'package:eduhub/edit_profile_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,319 +33,245 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   Uint8List? _profileImageBytes;
   bool uploading = false;
 
-  int completedCourses = 5;
-  int points = 120;
-  double performance = 0.75;
-
   @override
   void initState() {
     super.initState();
     loadProfileImage();
   }
 
-  /// ================= LOAD PROFILE IMAGE =================
   Future<void> loadProfileImage() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
-
       final doc =
           await FirebaseFirestore.instance.collection("users").doc(uid).get();
-
       if (doc.exists && doc.data()!.containsKey("profile_image")) {
         final base64String = doc.data()!["profile_image"];
-        final bytes = base64Decode(base64String);
-
-        setState(() {
-          _profileImageBytes = bytes;
-        });
+        setState(() => _profileImageBytes = base64Decode(base64String));
       }
     } catch (_) {}
   }
 
-  /// ================= PICK IMAGE =================
   Future<void> pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null) return;
-
     final bytes = await picked.readAsBytes();
-
-    setState(() {
-      _profileImageBytes = bytes;
-    });
-
+    setState(() => _profileImageBytes = bytes);
     await uploadImageToFirestore(bytes);
   }
 
-  /// ================= UPLOAD IMAGE =================
   Future<void> uploadImageToFirestore(Uint8List bytes) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
-
       setState(() => uploading = true);
-
       final base64String = base64Encode(bytes);
-
       await FirebaseFirestore.instance
           .collection("users")
           .doc(uid)
           .set({"profile_image": base64String}, SetOptions(merge: true));
-
       setState(() => uploading = false);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile picture updated")),
-      );
     } catch (e) {
       setState(() => uploading = false);
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to upload: $e")),
-      );
     }
   }
 
-  /// ================= LOGOUT =================
   Future<void> logout() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
-    Navigator.pop(context);
+    // Using pushAndRemoveUntil to clear navigation stack on logout
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
-  /// ================= NAVIGATION =================
-  void openMyCourses() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const MyCoursesPage()),
-    );
-  }
-
-  void openRecommended() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CoursesPage()),
-    );
-  }
-
-  void openTutorials() {}
-
-  void openProgramsByClubs() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ProgramsByClubsPage(),
-      ),
-    );
-  }
-
-  void openAssignments() {}
-  void openAchievements() {}
-
-  /// ================= ADD ROLE & REDIRECT =================
-  Future<void> addRoleAndRedirect(String role) async {
-    final result = await AuthService.addRole(role);
-
-    if (result == "ROLE_ADDED_SUCCESS") {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-
-      final doc =
-          await FirebaseFirestore.instance.collection("users").doc(uid).get();
-
-      final data = doc.data();
-
-      if (data != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ChooseRolePage(
-              username: data["username"],
-              roles: List<String>.from(data["roles"] ?? []),
-            ),
-          ),
-        );
-      }
-    } else if (result == "ROLE_ALREADY_EXISTS") {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You already have this role")),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
-    }
-  }
+  // Navigation Helpers
+  void openMyCourses() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const MyCoursesPage()));
+  void openRecommended() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const CoursesPage()));
+  void openProgramsByClubs() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const ProgramsByClubsPage()));
+  void openAchievements() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const AddAchievementPage()));
+  void openKuppiSessions() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const KuppiSessionsPage()));
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient:
+                LinearGradient(colors: [Color(0xFF009639), Color(0xFF00C853)]),
+          ),
+        ),
         title: const Text("Student Dashboard"),
-        backgroundColor: const Color(0xFF009639),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.chat),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ChatListPage())),
+          ),
           IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
+
+          /// SETTINGS POPUP MENU (Role Switch & Logout moved here)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.settings),
+            onSelected: (value) {
+              switch (value) {
+                case 'edit':
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              EditProfilePage(username: widget.username)));
+                  break;
+                case 'switch':
+                  Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ChooseRolePage(
+                              username: widget.username, roles: widget.roles)));
+                  break;
+                case 'logout':
+                  logout();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                  value: 'edit',
+                  child: ListTile(
+                      leading: Icon(Icons.person_outline),
+                      title: Text('Edit Profile'))),
+              const PopupMenuItem(
+                  value: 'switch',
+                  child: ListTile(
+                      leading: Icon(Icons.swap_horiz),
+                      title: Text('Switch Role'))),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                  value: 'logout',
+                  child: ListTile(
+                      leading: Icon(Icons.logout, color: Colors.red),
+                      title:
+                          Text('Logout', style: TextStyle(color: Colors.red)))),
+            ],
+          ),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// PROFILE
-            GestureDetector(
-              onTap: pickImage,
-              child: Stack(
+            /// PROFILE SECTION
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.grey.shade300,
+                      blurRadius: 10,
+                      offset: const Offset(0, 4))
+                ],
+              ),
+              child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundImage: _profileImageBytes != null
-                        ? MemoryImage(_profileImageBytes!)
-                        : null,
-                    child: _profileImageBytes == null
-                        ? const Icon(Icons.camera_alt, size: 40)
-                        : null,
-                  ),
-                  if (uploading)
-                    const Positioned.fill(
-                      child: Center(child: CircularProgressIndicator()),
+                  GestureDetector(
+                    onTap: pickImage,
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: _profileImageBytes != null
+                              ? MemoryImage(_profileImageBytes!)
+                              : null,
+                          child: _profileImageBytes == null
+                              ? const Icon(Icons.person,
+                                  size: 50, color: Colors.grey)
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: CircleAvatar(
+                            radius: 15,
+                            backgroundColor: Colors.green,
+                            child: Icon(Icons.camera_alt,
+                                size: 16, color: Colors.white),
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  const SizedBox(height: 15),
+                  Text("Welcome, ${widget.username}",
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
-
-            const SizedBox(height: 10),
-            Text(
-              "Welcome, ${widget.username}!",
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
             const SizedBox(height: 25),
 
-            /// PERFORMANCE CARD
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    const Text(
-                      "Your Performance",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    LinearProgressIndicator(
-                      value: performance,
-                      minHeight: 10,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            buildMenuButton(Icons.book, "My Courses", openMyCourses),
-            buildMenuButton(
+            /// NAVIGATION MENU
+            buildModernMenuTile(Icons.book, "My Courses", openMyCourses),
+            buildModernMenuTile(
+                Icons.video_call, "Kuppi Sessions", openKuppiSessions),
+            buildModernMenuTile(
                 Icons.auto_awesome, "Recommended Courses", openRecommended),
-            buildMenuButton(
-                Icons.video_library, "Tutorials / Resources", openTutorials),
-            buildMenuButton(
-                Icons.live_tv, "Programs by Clubs", openProgramsByClubs),
-            buildMenuButton(Icons.assignment, "Assignments", openAssignments),
-            buildMenuButton(
-                Icons.emoji_events, "Achievements / Badges", openAchievements),
-
-            const SizedBox(height: 30),
-
-            /// LOGOUT
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: logout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF009639),
-                ),
-                child: const Text("Logout"),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            if (!widget.roles.contains("club"))
-              buildMenuButton(
-                Icons.groups,
-                "Add Club Role",
-                () => addRoleAndRedirect("club"),
-              ),
-
-            if (!widget.roles.contains("tutor"))
-              buildMenuButton(
-                Icons.menu_book,
-                "Add Tutor Role",
-                () => addRoleAndRedirect("tutor"),
-              ),
-
-            if (!widget.roles.contains("recruiter"))
-              buildMenuButton(
-                Icons.business_center,
-                "Add Recruiter Role",
-                () => addRoleAndRedirect("recruiter"),
-              ),
-
-            const SizedBox(height: 10),
-
-            /// SWITCH ROLE
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChooseRolePage(
-                        username: widget.username,
-                        roles: widget.roles,
-                      ),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                ),
-                child: const Text("Switch Role"),
-              ),
-            ),
+            buildModernMenuTile(
+                Icons.live_tv, "Club Programs", openProgramsByClubs),
+            buildModernMenuTile(
+                Icons.emoji_events, "Achievements", openAchievements),
           ],
         ),
       ),
+      // REMOVED bottomNavigationBar to clean up the UI
     );
   }
 
-  Widget buildMenuButton(IconData icon, String title, VoidCallback onTap) {
+  Widget buildModernMenuTile(IconData icon, String title, VoidCallback onTap) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 55),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: onTap,
-        child: Row(
-          children: [
-            Icon(icon),
-            const SizedBox(width: 15),
-            Text(title),
-          ],
+      padding: const EdgeInsets.only(bottom: 14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.shade200,
+                  blurRadius: 12,
+                  offset: const Offset(0, 6))
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: const Color(0xFF009639).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Icon(icon, color: const Color(0xFF009639), size: 26),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600))),
+              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+            ],
+          ),
         ),
       ),
     );

@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+import 'dart:convert';
+
+import 'package:eduhub/edit_profile_page.dart';
 import 'package:flutter/material.dart';
 import 'choose_role_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,6 +34,34 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
   TimeOfDay? selectedTime;
 
   bool loading = false;
+
+  /// ================= PROFILE IMAGE =================
+  Uint8List? _profileImageBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    loadProfileImage();
+  }
+
+  Future<void> loadProfileImage() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final doc =
+          await FirebaseFirestore.instance.collection("users").doc(uid).get();
+
+      if (doc.exists && doc.data()!.containsKey("profile_image")) {
+        final base64String = doc.data()!["profile_image"];
+        setState(() {
+          _profileImageBytes = base64Decode(base64String);
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading profile image: $e");
+    }
+  }
 
   /// ================= GET TUTOR COURSES =================
   Stream<QuerySnapshot> getTutorCourses() {
@@ -84,7 +116,7 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
   Future<void> logout() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
-    Navigator.pop(context);
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   /// ================= ADD COURSE =================
@@ -96,17 +128,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
       final user = FirebaseAuth.instance.currentUser;
 
-      DateTime? sessionDateTime;
-      if (selectedDate != null && selectedTime != null) {
-        sessionDateTime = DateTime(
-          selectedDate!.year,
-          selectedDate!.month,
-          selectedDate!.day,
-          selectedTime!.hour,
-          selectedTime!.minute,
-        );
-      }
-
       await FirebaseFirestore.instance.collection("courses").add({
         "title": titleController.text.trim(),
         "description": descriptionController.text.trim(),
@@ -114,8 +135,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
         "content": contentController.text.trim(),
         "tutor": widget.username,
         "tutorId": user?.uid,
-        "sessionDate": sessionDateTime,
-        "sessionLink": sessionLinkController.text.trim(),
         "createdAt": Timestamp.now(),
         "isDeleted": false,
       });
@@ -142,9 +161,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
     descriptionController.clear();
     priceController.clear();
     contentController.clear();
-    sessionLinkController.clear();
-    selectedDate = null;
-    selectedTime = null;
   }
 
   /// ================= ADD COURSE DIALOG =================
@@ -195,39 +211,148 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        title: const Text("Tutor Dashboard"),
-        backgroundColor: const Color(0xFF009639),
         automaticallyImplyLeading: false,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: showAddCourseDialog,
-        child: const Icon(Icons.add),
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF009639), Color(0xFF00C853)],
+            ),
+          ),
+        ),
+        title: const Text("Tutor Dashboard"),
+        actions: [
+          IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.settings),
+            onSelected: (value) {
+              switch (value) {
+                case 'edit':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          EditProfilePage(username: widget.username),
+                    ),
+                  ).then((_) => loadProfileImage());
+                  break;
+                case 'switch':
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChooseRolePage(
+                        username: widget.username,
+                        roles: widget.roles,
+                      ),
+                    ),
+                  );
+                  break;
+                case 'logout':
+                  logout();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.person_outline),
+                  title: Text('Edit Profile'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'switch',
+                child: ListTile(
+                  leading: Icon(Icons.swap_horiz),
+                  title: Text('Switch Role'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: ListTile(
+                  leading: Icon(Icons.logout, color: Colors.red),
+                  title: Text('Logout', style: TextStyle(color: Colors.red)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Text(
-              "Welcome, ${widget.username}",
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            /// ================= HEADER =================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.shade300,
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ],
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 35,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: _profileImageBytes != null
+                        ? MemoryImage(_profileImageBytes!)
+                        : null,
+                    child: _profileImageBytes == null
+                        ? const Icon(Icons.person, size: 30, color: Colors.grey)
+                        : null,
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Welcome back,",
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.username,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 20),
 
-            /// 🔥 MAIN CONTENT
+            /// ================= CONTENT =================
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// ================= COURSES =================
+                    /// COURSES
                     const Text(
                       "My Courses",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-
                     const SizedBox(height: 10),
 
                     StreamBuilder<QuerySnapshot>(
@@ -249,22 +374,28 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                             final data = course.data() as Map<String, dynamic>;
 
                             return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
                               child: ListTile(
-                                title: Text(data["title"] ?? ""),
+                                title: Text(
+                                  data["title"] ?? "",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
+                                ),
                                 subtitle: Text(data["description"] ?? ""),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ManageLessonsPage(
-                                          courseId: course.id),
-                                    ),
-                                  );
-                                },
                                 trailing: IconButton(
                                   icon: const Icon(Icons.delete,
                                       color: Colors.red),
                                   onPressed: () => deleteCourse(course.id),
+                                ),
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ManageLessonsPage(courseId: course.id),
+                                  ),
                                 ),
                               ),
                             );
@@ -275,13 +406,12 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
                     const SizedBox(height: 25),
 
-                    /// ================= KUPPI SESSIONS =================
+                    /// SESSIONS
                     const Text(
                       "My Kuppi Sessions",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-
                     const SizedBox(height: 10),
 
                     StreamBuilder<QuerySnapshot>(
@@ -303,15 +433,17 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                             final data = doc.data() as Map<String, dynamic>;
 
                             return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
                               child: ListTile(
-                                title: Text(data["title"] ?? ""),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text("Subject: ${data["subject"] ?? ""}"),
-                                    Text("Topic: ${data["topic"] ?? ""}"),
-                                  ],
+                                title: Text(
+                                  data["title"] ?? "",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
+                                subtitle: Text("Topic: ${data["topic"] ?? ""}"),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.delete,
                                       color: Colors.red),
@@ -328,15 +460,22 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 10),
 
-            /// CREATE SESSION BUTTON
+            /// BUTTONS
             SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 50,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.video_call),
                 label: const Text("Create Kuppi Session"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF009639),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -351,26 +490,21 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
             const SizedBox(height: 10),
 
-            /// LOGOUT
-            ElevatedButton(
-              onPressed: logout,
-              child: const Text("Logout"),
-            ),
-
-            /// SWITCH ROLE
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChooseRolePage(
-                      username: widget.username,
-                      roles: widget.roles,
-                    ),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text("Add New Course"),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF009639)),
+                  foregroundColor: const Color(0xFF009639),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
                   ),
-                );
-              },
-              child: const Text("Switch Role"),
+                ),
+                onPressed: showAddCourseDialog,
+              ),
             ),
           ],
         ),
