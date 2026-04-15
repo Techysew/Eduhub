@@ -27,27 +27,106 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
     );
   }
 
+  // ✅ NEW: Forgot password dialog
+  Future<void> showForgotPasswordDialog() async {
+    final resetEmailController = TextEditingController(
+      text: emailController.text.trim(),
+    );
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Reset Password"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Enter your email address and we'll send you a link to reset your password.",
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: "Email",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF009639),
+            ),
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isEmpty) {
+                showMessage("Please enter your email");
+                return;
+              }
+              try {
+                await FirebaseAuth.instance
+                    .sendPasswordResetEmail(email: email);
+                if (!mounted) return;
+                Navigator.pop(context);
+                showMessage("✅ Password reset email sent. Check your inbox.");
+              } on FirebaseAuthException catch (e) {
+                Navigator.pop(context);
+                if (e.code == 'user-not-found') {
+                  showMessage("❌ No account found with this email.");
+                } else if (e.code == 'invalid-email') {
+                  showMessage("❌ Invalid email address.");
+                } else {
+                  showMessage("❌ Failed to send reset email. Try again.");
+                }
+              }
+            },
+            child: const Text("Send Reset Link"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> loginUser() async {
     final email = emailController.text.trim();
     final password = passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      showMessage("Please fill all fields");
+    if (email.isEmpty && password.isEmpty) {
+      showMessage("Please enter your email and password");
+      return;
+    }
+    if (email.isEmpty) {
+      showMessage("Please enter your email");
+      return;
+    }
+    if (password.isEmpty) {
+      showMessage("Please enter your password");
+      return;
+    }
+
+    // Basic email format check before hitting Firebase
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+    if (!emailRegex.hasMatch(email)) {
+      showMessage("Please enter a valid email address");
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      // 1️⃣ Sign in
       UserCredential cred = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
 
       User user = cred.user!;
-      await user.reload(); // refresh to get latest email verification status
+      await user.reload();
       user = FirebaseAuth.instance.currentUser!;
 
-      // 2️⃣ Check email verification
       if (!user.emailVerified) {
         await FirebaseAuth.instance.signOut();
         setState(() => isLoading = false);
@@ -55,7 +134,6 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
         return;
       }
 
-      // 3️⃣ Get user data from Firestore
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -74,7 +152,6 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
 
       if (!mounted) return;
 
-      // 4️⃣ Navigate based on roles
       if (roles.length > 1) {
         Navigator.pushReplacement(
           context,
@@ -107,16 +184,39 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
     } on FirebaseAuthException catch (e) {
       setState(() => isLoading = false);
 
-      String msg = "Login failed";
-      if (e.code == 'user-not-found') msg = "User not found";
-      if (e.code == 'wrong-password') msg = "Incorrect password";
-      if (e.code == 'invalid-email') msg = "Invalid email";
-
-      showMessage(msg);
+      // ✅ FIXED: Covers both old and new Firebase SDK error codes
+      switch (e.code) {
+        case 'user-not-found':
+        case 'invalid-credential': // newer Firebase SDK merges these
+          showMessage(
+              "❌ No account found with this email, or password is incorrect.");
+          break;
+        case 'wrong-password':
+          showMessage("❌ Incorrect password. Try again or reset it below.");
+          break;
+        case 'invalid-email':
+          showMessage("❌ That doesn't look like a valid email address.");
+          break;
+        case 'user-disabled':
+          showMessage("❌ This account has been disabled. Contact support.");
+          break;
+        case 'too-many-requests':
+          showMessage(
+              "⚠️ Too many failed attempts. Please wait a moment and try again.");
+          break;
+        case 'network-request-failed':
+          showMessage(
+              "⚠️ No internet connection. Check your network and try again.");
+          break;
+        default:
+          showMessage("❌ Login failed (${e.code}). Please try again.");
+          debugPrint(
+              "🔥 Unhandled FirebaseAuthException: ${e.code} — ${e.message}");
+      }
     } catch (e) {
       setState(() => isLoading = false);
       showMessage("An unexpected error occurred. Try again.");
-      print("🔥 Login error: $e"); // for debugging
+      debugPrint("🔥 Login error: $e");
     }
   }
 
@@ -133,6 +233,7 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
           children: [
             TextField(
               controller: emailController,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: "Email"),
             ),
             const SizedBox(height: 20),
@@ -150,15 +251,36 @@ class _UniversalLoginPageState extends State<UniversalLoginPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: isLoading ? null : loginUser,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF009639),
+            const SizedBox(height: 8),
+
+            // ✅ NEW: Forgot password link
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: showForgotPasswordDialog,
+                child: const Text(
+                  "Forgot Password?",
+                  style: TextStyle(color: Color(0xFF009639)),
+                ),
               ),
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Login"),
+            ),
+
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : loginUser,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF009639),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        "Login",
+                        style: TextStyle(fontSize: 16),
+                      ),
+              ),
             ),
           ],
         ),
