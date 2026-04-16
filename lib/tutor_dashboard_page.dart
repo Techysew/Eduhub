@@ -32,7 +32,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
   bool loading = false;
 
-  // ── Profile image ──────────────────────────────────────────
   Uint8List? _profileImageBytes;
 
   @override
@@ -57,7 +56,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
     }
   }
 
-  // ── Firestore streams ──────────────────────────────────────
   Stream<QuerySnapshot> getTutorCourses() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return FirebaseFirestore.instance
@@ -77,7 +75,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
         .snapshots();
   }
 
-  // ── Actions ────────────────────────────────────────────────
   Future<void> deleteCourse(String id) async {
     await FirebaseFirestore.instance
         .collection('courses')
@@ -124,7 +121,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
-  // ── Add course ─────────────────────────────────────────────
   Future<void> addCourse() async {
     if (titleController.text.isEmpty) return;
     try {
@@ -169,30 +165,26 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
           child: Column(
             children: [
               TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: 'Course Title'),
-              ),
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Course Title')),
               TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description')),
               TextField(
-                controller: contentController,
-                decoration: const InputDecoration(labelText: 'Course Content'),
-              ),
+                  controller: contentController,
+                  decoration:
+                      const InputDecoration(labelText: 'Course Content')),
               TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Price'),
-              ),
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Price')),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: loading ? null : addCourse,
             child: loading
@@ -204,14 +196,15 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────
-  String _formatDate(dynamic ts) {
+  /// Returns "15 Aug 2025 • 10:30 AM"
+  String _formatDateTime(dynamic ts) {
     if (ts == null) return '—';
-    final date = (ts as Timestamp).toDate();
-    return DateFormat.yMMMd().format(date);
+    final dt = (ts as Timestamp).toDate();
+    final datePart = DateFormat('d MMM yyyy').format(dt);
+    final timePart = DateFormat('h:mm a').format(dt);
+    return '$datePart  •  $timePart';
   }
 
-  // ── UI ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -247,9 +240,7 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => ChooseRolePage(
-                        username: widget.username,
-                        roles: widget.roles,
-                      ),
+                          username: widget.username, roles: widget.roles),
                     ),
                   );
                   break;
@@ -292,7 +283,7 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ── Welcome header ──────────────────────────────
+            // Welcome header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -324,18 +315,12 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Welcome back,',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
+                        const Text('Welcome back,',
+                            style: TextStyle(fontSize: 14, color: Colors.grey)),
                         const SizedBox(height: 4),
-                        Text(
-                          widget.username,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text(widget.username,
+                            style: const TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -345,18 +330,15 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
             const SizedBox(height: 20),
 
-            // ── Scrollable content ──────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── My Courses ────────────────────────
-                    const Text(
-                      'My Courses',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                    // My Courses
+                    const Text('My Courses',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
 
                     StreamBuilder<QuerySnapshot>(
@@ -367,23 +349,19 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                               child: CircularProgressIndicator());
                         }
                         final courses = snapshot.data!.docs;
-                        if (courses.isEmpty) {
+                        if (courses.isEmpty)
                           return const Text('No courses yet');
-                        }
                         return Column(
                           children: courses.map((course) {
                             final data = course.data() as Map<String, dynamic>;
                             return Card(
                               margin: const EdgeInsets.only(bottom: 10),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
+                                  borderRadius: BorderRadius.circular(15)),
                               child: ListTile(
-                                title: Text(
-                                  data['title'] ?? '',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
+                                title: Text(data['title'] ?? '',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
                                 subtitle: Text(data['description'] ?? ''),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.delete,
@@ -406,12 +384,10 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
                     const SizedBox(height: 25),
 
-                    // ── My Kuppi Sessions ─────────────────
-                    const Text(
-                      'My Kuppi Sessions',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                    // My Kuppi Sessions
+                    const Text('My Kuppi Sessions',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
 
                     StreamBuilder<QuerySnapshot>(
@@ -432,7 +408,8 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                               sessionId: doc.id,
                               data: data,
                               tutorName: widget.username,
-                              formattedDate: _formatDate(data['dateTime']),
+                              formattedDateTime:
+                                  _formatDateTime(data['dateTime']),
                               onDelete: () => deleteSession(doc.id),
                             );
                           }).toList(),
@@ -448,7 +425,6 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
 
             const SizedBox(height: 10),
 
-            // ── Bottom action buttons ───────────────────────
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -459,8 +435,7 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                   backgroundColor: const Color(0xFF009639),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
+                      borderRadius: BorderRadius.circular(15)),
                 ),
                 onPressed: () => Navigator.push(
                   context,
@@ -484,8 +459,7 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
                   side: const BorderSide(color: Color(0xFF009639)),
                   foregroundColor: const Color(0xFF009639),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
+                      borderRadius: BorderRadius.circular(15)),
                 ),
                 onPressed: showAddCourseDialog,
               ),
@@ -497,19 +471,19 @@ class _TutorDashboardPageState extends State<TutorDashboardPage> {
   }
 }
 
-// ── Session card widget ────────────────────────────────────────
+// ── Session card ───────────────────────────────────────────────
 class _SessionCard extends StatefulWidget {
   final String sessionId;
   final Map<String, dynamic> data;
   final String tutorName;
-  final String formattedDate;
+  final String formattedDateTime;
   final VoidCallback onDelete;
 
   const _SessionCard({
     required this.sessionId,
     required this.data,
     required this.tutorName,
-    required this.formattedDate,
+    required this.formattedDateTime,
     required this.onDelete,
   });
 
@@ -533,7 +507,7 @@ class _SessionCardState extends State<_SessionCard> {
       elevation: 2,
       child: Column(
         children: [
-          // ── Header row (always visible) ──
+          // Header row
           ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -541,9 +515,25 @@ class _SessionCardState extends State<_SessionCard> {
               d['title'] ?? '',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            subtitle: Text(
-              '${d['subject'] ?? ''}  •  ${widget.formattedDate}',
-              style: const TextStyle(fontSize: 13),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if ((d['subject'] ?? '').isNotEmpty)
+                  Text(d['subject'], style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time,
+                        size: 13, color: Color(0xFF009639)),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.formattedDateTime,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF009639)),
+                    ),
+                  ],
+                ),
+              ],
             ),
             trailing: IconButton(
               icon: Icon(
@@ -555,7 +545,7 @@ class _SessionCardState extends State<_SessionCard> {
             onTap: () => setState(() => _expanded = !_expanded),
           ),
 
-          // ── Expanded detail section ──
+          // Expanded details
           if (_expanded) ...[
             const Divider(height: 1, indent: 16, endIndent: 16),
             Padding(
@@ -568,9 +558,9 @@ class _SessionCardState extends State<_SessionCard> {
                       label: 'Topic',
                       value: d['topic'] ?? '—'),
                   _DetailRow(
-                      icon: Icons.calendar_today,
-                      label: 'Date',
-                      value: widget.formattedDate),
+                      icon: Icons.event,
+                      label: 'Date & time',
+                      value: widget.formattedDateTime),
                   if (hasLink)
                     _DetailRow(
                         icon: Icons.link,
@@ -586,10 +576,7 @@ class _SessionCardState extends State<_SessionCard> {
                         icon: Icons.notes,
                         label: 'Description',
                         value: d['description']),
-
                   const SizedBox(height: 12),
-
-                  // ── Edit / Delete buttons ──
                   Row(
                     children: [
                       Expanded(
@@ -600,8 +587,7 @@ class _SessionCardState extends State<_SessionCard> {
                             side: const BorderSide(color: Color(0xFF009639)),
                             foregroundColor: const Color(0xFF009639),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                                borderRadius: BorderRadius.circular(10)),
                           ),
                           onPressed: () => Navigator.push(
                             context,
@@ -624,8 +610,7 @@ class _SessionCardState extends State<_SessionCard> {
                             side: const BorderSide(color: Colors.red),
                             foregroundColor: Colors.red,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                                borderRadius: BorderRadius.circular(10)),
                           ),
                           onPressed: widget.onDelete,
                         ),
@@ -642,7 +627,7 @@ class _SessionCardState extends State<_SessionCard> {
   }
 }
 
-// ── Small detail row ───────────────────────────────────────────
+// ── Detail row ─────────────────────────────────────────────────
 class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -663,15 +648,12 @@ class _DetailRow extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: const Color(0xFF009639)),
           const SizedBox(width: 8),
-          Text(
-            '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          ),
+          Text('$label: ',
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 13, color: Colors.black87),
-            ),
+            child: Text(value,
+                style: const TextStyle(fontSize: 13, color: Colors.black87)),
           ),
         ],
       ),

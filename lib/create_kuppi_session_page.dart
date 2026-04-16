@@ -31,6 +31,7 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
   late final TextEditingController description;
 
   DateTime? selectedDate;
+  TimeOfDay? selectedTime;
   bool _loading = false;
 
   bool get isEditMode => widget.sessionId != null;
@@ -46,8 +47,11 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     materials = TextEditingController(text: d?['materials'] ?? '');
     description = TextEditingController(text: d?['description'] ?? '');
 
+    // Pre-fill date AND time when editing
     if (d?['dateTime'] is Timestamp) {
-      selectedDate = (d!['dateTime'] as Timestamp).toDate();
+      final dt = (d!['dateTime'] as Timestamp).toDate();
+      selectedDate = DateTime(dt.year, dt.month, dt.day);
+      selectedTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
     }
   }
 
@@ -63,10 +67,14 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate() || selectedDate == null) {
+    if (!_formKey.currentState!.validate() ||
+        selectedDate == null ||
+        selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please fill all required fields and pick a date')),
+          content:
+              Text('Please fill all required fields, pick a date and a time'),
+        ),
       );
       return;
     }
@@ -74,6 +82,15 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     setState(() => _loading = true);
 
     try {
+      // Combine date + time into a single DateTime
+      final combined = DateTime(
+        selectedDate!.year,
+        selectedDate!.month,
+        selectedDate!.day,
+        selectedTime!.hour,
+        selectedTime!.minute,
+      );
+
       final payload = {
         'title': title.text.trim(),
         'subject': subject.text.trim(),
@@ -81,7 +98,7 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
         'zoomLink': zoomLink.text.trim(),
         'materials': materials.text.trim(),
         'description': description.text.trim(),
-        'dateTime': Timestamp.fromDate(selectedDate!),
+        'dateTime': Timestamp.fromDate(combined),
       };
 
       if (isEditMode) {
@@ -126,9 +143,24 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     if (date != null) setState(() => selectedDate = date);
   }
 
+  Future<void> _pickTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: selectedTime ?? TimeOfDay.now(),
+    );
+    if (time != null) setState(() => selectedTime = time);
+  }
+
   String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')} / '
       '${d.month.toString().padLeft(2, '0')} / '
       '${d.year}';
+
+  String _formatTime(TimeOfDay t) {
+    final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final minute = t.minute.toString().padLeft(2, '0');
+    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,25 +188,92 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
               _buildField(zoomLink, 'Meeting Link (Zoom / Meet)'),
               _buildField(materials, 'Materials link (optional)'),
               _buildField(description, 'Description', maxLines: 3),
+
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.calendar_today),
-                label: Text(
-                  selectedDate == null
-                      ? 'Pick a date *'
-                      : 'Date: ${_formatDate(selectedDate!)}',
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF009639)),
-                  foregroundColor: const Color(0xFF009639),
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+
+              // ── Date + Time pickers side by side ──
+              Row(
+                children: [
+                  // Date picker
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Text(
+                        selectedDate == null
+                            ? 'Pick date *'
+                            : _formatDate(selectedDate!),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF009639)),
+                        foregroundColor: const Color(0xFF009639),
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _pickDate,
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // Time picker
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.access_time, size: 18),
+                      label: Text(
+                        selectedTime == null
+                            ? 'Pick time *'
+                            : _formatTime(selectedTime!),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF009639)),
+                        foregroundColor: const Color(0xFF009639),
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _pickTime,
+                    ),
+                  ),
+                ],
+              ),
+
+              // Show combined summary once both are picked
+              if (selectedDate != null && selectedTime != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFF009639), width: 0.6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle,
+                          color: Color(0xFF009639), size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Session on ${_formatDate(selectedDate!)} at ${_formatTime(selectedTime!)}',
+                        style: const TextStyle(
+                          color: Color(0xFF009639),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                onPressed: _pickDate,
-              ),
+              ],
+
               const SizedBox(height: 24),
+
               SizedBox(
                 height: 50,
                 child: ElevatedButton(
