@@ -56,16 +56,6 @@ class _ClubDashboardPageState extends State<ClubDashboardPage> {
         selectedTime!.minute,
       );
 
-      // ✅ STEP 1: Ensure the club document exists
-      await FirebaseFirestore.instance
-          .collection("clubs")
-          .doc(widget.username)
-          .set({
-        "name": widget.username,
-        "createdAt": Timestamp.now(),
-      }, SetOptions(merge: true));
-
-      // ✅ STEP 2: Add program
       await FirebaseFirestore.instance
           .collection("clubs")
           .doc(widget.username)
@@ -85,7 +75,6 @@ class _ClubDashboardPageState extends State<ClubDashboardPage> {
         "createdAt": Timestamp.now(),
       });
 
-      // ✅ Clear inputs
       programTitleController.clear();
       programDescController.clear();
       setState(() {
@@ -98,10 +87,6 @@ class _ClubDashboardPageState extends State<ClubDashboardPage> {
         const SnackBar(content: Text("Program added successfully")),
       );
     } catch (e) {
-<<<<<<< Updated upstream
-=======
-      print("Add program error: $e");
->>>>>>> Stashed changes
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error adding program: $e")),
       );

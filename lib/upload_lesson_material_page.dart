@@ -4,11 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-<<<<<<< Updated upstream
 import 'package:url_launcher/url_launcher.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-=======
->>>>>>> Stashed changes
 
 class UploadLessonMaterialPage extends StatefulWidget {
   final String courseId;
@@ -30,24 +27,12 @@ class _UploadLessonMaterialPageState extends State<UploadLessonMaterialPage> {
   String? fileName;
   bool loading = false;
 
-<<<<<<< Updated upstream
   /// PICK FILE
   Future<void> pickFile() async {
     final result = await FilePicker.platform.pickFiles(withData: true);
-=======
-  Future<void> uploadFile() async {
-    try {
-      // Pick file
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx'],
-        withData: true, // MUST for Web
-      );
->>>>>>> Stashed changes
 
-      if (result == null) return; // user canceled
+    if (result == null) return;
 
-<<<<<<< Updated upstream
     setState(() {
       fileBytes = result.files.first.bytes;
       fileName = result.files.first.name;
@@ -195,64 +180,6 @@ class _UploadLessonMaterialPageState extends State<UploadLessonMaterialPage> {
       return const Icon(Icons.description, color: Colors.blue);
     }
     return const Icon(Icons.insert_drive_file);
-=======
-      setState(() => loading = true);
-
-      final fileBytes = result.files.first.bytes;
-      final fileName = result.files.first.name;
-
-      if (fileBytes == null) {
-        throw Exception("File bytes are null. Picked wrong file?");
-      }
-
-      // Firebase Storage path
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child("courses/${widget.courseId}/${widget.lessonId}/$fileName");
-
-      // Upload using bytes
-      final uploadTask = ref.putData(
-        fileBytes,
-        SettableMetadata(contentType: _getContentType(fileName)),
-      );
-
-      final snapshot = await uploadTask;
-
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      // Save URL to Firestore lesson
-      await FirebaseFirestore.instance
-          .collection("courses")
-          .doc(widget.courseId)
-          .collection("lessons")
-          .doc(widget.lessonId)
-          .update({
-        "fileUrl": downloadUrl,
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("File uploaded successfully")),
-      );
-
-      Navigator.pop(context);
-    } catch (e) {
-      print("UPLOAD ERROR: $e");
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Upload failed: $e")),
-      );
-    } finally {
-      setState(() => loading = false);
-    }
-  }
-
-  // Determine content type based on extension
-  String _getContentType(String fileName) {
-    if (fileName.endsWith(".pdf")) return "application/pdf";
-    if (fileName.endsWith(".doc")) return "application/msword";
-    if (fileName.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    return "application/octet-stream";
->>>>>>> Stashed changes
   }
 
   @override
