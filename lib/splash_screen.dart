@@ -2,140 +2,307 @@ import 'package:flutter/material.dart';
 import 'role_selection_page.dart';
 import 'universal_login_page.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..forward();
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  Widget _slide({
+    required Widget child,
+    Offset begin = const Offset(0, 0.3),
+    double intervalStart = 0.0,
+    double intervalEnd = 1.0,
+  }) {
+    return SlideTransition(
+      position: Tween<Offset>(begin: begin, end: Offset.zero).animate(
+        CurvedAnimation(
+          parent: _slideController,
+          curve: Interval(intervalStart, intervalEnd,
+              curve: Curves.easeOutCubic),
+        ),
+      ),
+      child: child,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF009639),
-              Color(0xFF00C853),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      backgroundColor: const Color(0xFF0A0F1E),
+      body: Stack(
+        children: [
+          // ── Background blobs ──────────────────────────────
+          Positioned(
+            top: -100,
+            right: -80,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFF3B82F6).withOpacity(0.15),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-
-              /// Logo
-              Container(
-                padding: const EdgeInsets.all(25),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.school,
-                  size: 80,
-                  color: Colors.white,
-                ),
+          Positioned(
+            bottom: -130,
+            left: -90,
+            child: Container(
+              width: 360,
+              height: 360,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFF8B5CF6).withOpacity(0.13),
+                  Colors.transparent,
+                ]),
               ),
+            ),
+          ),
 
-              const SizedBox(height: 25),
-
-              const Text(
-                "EduHub",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                "Learn • Share • Grow",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-              ),
-
-              const Spacer(),
-
-              /// Buttons container
-              Container(
-                padding: const EdgeInsets.all(25),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(30),
-                  ),
-                ),
+          // ── Content ───────────────────────────────────────
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeController,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Column(
                   children: [
-                    /// Login
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const UniversalLoginPage()),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF009639),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
+                    const Spacer(flex: 2),
+
+                    // Logo badge
+                    _slide(
+                      begin: const Offset(0, -0.4),
+                      intervalEnd: 0.6,
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(26),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF3B82F6).withOpacity(0.4),
+                              blurRadius: 32,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
                         ),
-                        child: const Text(
-                          "Login",
-                          style: TextStyle(fontSize: 18),
+                        child: const Icon(
+                          Icons.school_rounded,
+                          color: Colors.white,
+                          size: 42,
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 28),
 
-                    /// Sign Up
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const RoleSelectionPage()),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                              color: Color(0xFF009639), width: 2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
+                    // App name
+                    _slide(
+                      intervalStart: 0.1,
+                      intervalEnd: 0.65,
+                      child: const Text(
+                        'EduHub',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 40,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.2,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Accent bar
+                    _slide(
+                      intervalStart: 0.15,
+                      intervalEnd: 0.68,
+                      child: Container(
+                        width: 40,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Tagline
+                    _slide(
+                      intervalStart: 0.2,
+                      intervalEnd: 0.72,
+                      child: Text(
+                        'Learn, Share, Grow',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+
+                    const Spacer(flex: 3),
+
+                    // Login button
+                    _slide(
+                      intervalStart: 0.35,
+                      intervalEnd: 0.85,
+                      child: GestureDetector(
+                        onTap: () => Navigator.pushReplacement(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder: (_, __, ___) =>
+                                const UniversalLoginPage(),
+                            transitionsBuilder: (_, anim, __, child) =>
+                                FadeTransition(opacity: anim, child: child),
+                            transitionDuration:
+                                const Duration(milliseconds: 400),
                           ),
                         ),
-                        child: const Text(
-                          "Sign Up",
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Color(0xFF009639),
+                        child: Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    const Color(0xFF3B82F6).withOpacity(0.35),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Sign In',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 14),
+
+                    // Sign Up button
+                    _slide(
+                      intervalStart: 0.42,
+                      intervalEnd: 0.92,
+                      child: GestureDetector(
+                        onTap: () => Navigator.pushReplacement(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder: (_, __, ___) =>
+                                const RoleSelectionPage(),
+                            transitionsBuilder: (_, anim, __, child) =>
+                                FadeTransition(opacity: anim, child: child),
+                            transitionDuration:
+                                const Duration(milliseconds: 400),
+                          ),
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Create Account',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // Footer
+                    _slide(
+                      intervalStart: 0.5,
+                      intervalEnd: 1.0,
+                      child: Text(
+                        'By continuing, you agree to our Terms & Privacy Policy',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.2),
+                          fontSize: 11.5,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
