@@ -11,7 +11,7 @@ class AIRecommendationsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("AI Recommendations"),
+
         backgroundColor: const Color(0xFF009639),
       ),
       body: FutureBuilder<DocumentSnapshot>(
