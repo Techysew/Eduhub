@@ -21,6 +21,8 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   @override
   void initState() {
     super.initState();
+
+    // Start periodic verification check
     startAutoCheck();
     startResendCooldown();
   }
@@ -56,8 +58,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
         setState(() => isEmailVerified = true);
 
+        // Auto redirect to LoginPage after short delay
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted) return;
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const UniversalLoginPage()),
@@ -68,10 +72,8 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   }
 
   void startResendCooldown() {
-    setState(() {
-      canResendEmail = false;
-      resendSeconds = 30;
-    });
+    canResendEmail = false;
+    resendSeconds = 30;
 
     resendCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (resendSeconds == 0) {
@@ -104,99 +106,75 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     final email = FirebaseAuth.instance.currentUser?.email ?? "";
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text("Verify Email", style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text("Verify Email"),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF009639),
       ),
-      body: Stack(
-        children: [
-          Positioned(top: -50, right: -50, child: _Blob(color: const Color(0xFF009639))),
-          Positioned(bottom: -50, left: -50, child: _Blob(color: const Color(0xFF3B82F6))),
-          
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(25),
-              child: Container(
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131929),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.white.withOpacity(0.07)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isEmailVerified ? Icons.check_circle_outline : Icons.email_outlined,
-                      size: 80,
-                      color: const Color(0xFF009639),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      isEmailVerified ? "Verified!" : "Check your email",
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const SizedBox(height: 15),
-                    Text(
-                      isEmailVerified
-                          ? "Redirecting to login..."
-                          : "We sent a link to:\n$email\n\nClick the link in your inbox to proceed.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withOpacity(0.5)),
-                    ),
-                    const SizedBox(height: 30),
-                    
-                    if (!isEmailVerified) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: canResendEmail
-                              ? () async {
-                                  await sendVerificationEmail();
-                                  startResendCooldown();
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF009639),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(canResendEmail ? "Resend Email" : "Resend in $resendSeconds s"),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      TextButton(
-                        onPressed: cancelRegistration,
-                        child: const Text("Cancel / Back to Login", style: TextStyle(color: Colors.white60)),
-                      ),
-                      const SizedBox(height: 20),
-                      const CircularProgressIndicator(color: Color(0xFF009639)),
-                    ],
-                  ],
-                ),
+      body: Padding(
+        padding: const EdgeInsets.all(25),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isEmailVerified ? Icons.check_circle : Icons.email,
+                size: 90,
+                color: const Color(0xFF009639),
               ),
-            ),
+              const SizedBox(height: 20),
+              Text(
+                isEmailVerified
+                    ? "Email Verified Successfully!"
+                    : "Verify Your Email",
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 15),
+              Text(
+                isEmailVerified
+                    ? "Redirecting to login..."
+                    : "We sent a verification link to:\n$email\n\n"
+                        "✔ Open your email\n"
+                        "✔ Click the verification link\n"
+                        "✔ This page will update automatically",
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              if (!isEmailVerified)
+                ElevatedButton(
+                  onPressed: canResendEmail
+                      ? () async {
+                          await sendVerificationEmail();
+                          startResendCooldown();
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF009639),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 15, horizontal: 40),
+                  ),
+                  child: Text(
+                    canResendEmail
+                        ? "Resend Email"
+                        : "Resend in $resendSeconds s",
+                  ),
+                ),
+              const SizedBox(height: 15),
+              if (!isEmailVerified)
+                TextButton(
+                  onPressed: cancelRegistration,
+                  child: const Text("Cancel / Back to Login"),
+                ),
+              const SizedBox(height: 20),
+              if (!isEmailVerified)
+                const CircularProgressIndicator(
+                  color: Color(0xFF009639),
+                ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-}
-
-// ── Background Blob Helper ────────────────────────────────────────
-class _Blob extends StatelessWidget {
-  final Color color;
-  const _Blob({required this.color});
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 200,
-        height: 200,
-        decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(colors: [color.withOpacity(0.15), Colors.transparent])),
-      );
 }

@@ -22,30 +22,34 @@ class _ChatPageState extends State<ChatPage> {
 
   String get conversationId {
     List<String> ids = [currentUser.uid, widget.otherUserId];
-    ids.sort();
+    ids.sort(); // always sorts alphabetically
     return ids.join("_");
   }
 
   Future<void> sendMessage() async {
     if (messageController.text.trim().isEmpty) return;
-    if (currentUser.uid == widget.otherUserId) return;
+    if (currentUser.uid == widget.otherUserId) return; // 🛡️ guard
 
     final messageText = messageController.text.trim();
-    final convoRef = FirebaseFirestore.instance.collection("conversations").doc(conversationId);
 
-    // Update conversation metadata
+    final convoRef = FirebaseFirestore.instance
+        .collection("conversations")
+        .doc(conversationId);
+
     await convoRef.set({
-      "participants": FieldValue.arrayUnion([currentUser.uid, widget.otherUserId]),
+      "participants": FieldValue.arrayUnion(
+          [currentUser.uid, widget.otherUserId]), // ✅ fixed
       "lastMessage": messageText,
       "lastTimestamp": FieldValue.serverTimestamp(),
       "unread_${widget.otherUserId}": FieldValue.increment(1),
     }, SetOptions(merge: true));
 
-    // Send the actual message
     await convoRef.collection("messages").add({
       "senderId": currentUser.uid,
       "senderName": currentUser.email,
       "text": messageText,
+
+      // 🔥 ONLY ONE TIME FIELD (IMPORTANT)
       "timestamp": FieldValue.serverTimestamp(),
     });
 
@@ -54,135 +58,85 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final convoRef = FirebaseFirestore.instance.collection("conversations").doc(conversationId);
+    final convoRef = FirebaseFirestore.instance
+        .collection("conversations")
+        .doc(conversationId);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(widget.otherUserName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(widget.otherUserName),
       ),
-      body: Stack(
+      body: Column(
         children: [
-          // Background Blobs
-          Positioned(top: -50, right: -50, child: _Blob(color: const Color(0xFF009639))),
-          Positioned(bottom: -50, left: -50, child: _Blob(color: const Color(0xFF3B82F6))),
-          
-          Column(
-            children: [
-              // --- Message List ---
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: convoRef.collection("messages").orderBy("timestamp", descending: false).snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFF009639)));
-                    }
+          // -------- MESSAGE LIST --------
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: convoRef
+                  .collection("messages")
+                  .orderBy("timestamp", descending: false)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                    final messages = snapshot.data!.docs;
+                final messages = snapshot.data!.docs;
 
-                    if (messages.isEmpty) {
-                      return Center(child: Text("Start the conversation", style: TextStyle(color: Colors.white.withOpacity(0.3))));
-                    }
+                if (messages.isEmpty) {
+                  return const Center(child: Text("No messages yet"));
+                }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final data = messages[index].data() as Map<String, dynamic>;
-                        final isMe = data["senderId"] == currentUser.uid;
-                        return _ChatBubble(text: data["text"] ?? "", isMe: isMe);
-                      },
+                return ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final data = messages[index].data() as Map<String, dynamic>;
+
+                    final isMe = data["senderId"] == currentUser.uid;
+
+                    return Align(
+                      alignment:
+                          isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 4, horizontal: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? Colors.green.shade300
+                              : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(data["text"] ?? ""),
+                      ),
                     );
                   },
-                ),
-              ),
+                );
+              },
+            ),
+          ),
 
-              // --- Input Field ---
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131929),
-                  border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+          // -------- INPUT FIELD --------
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: messageController,
+                    decoration: const InputDecoration(
+                        hintText: "Type message...",
+                        border: OutlineInputBorder()),
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: messageController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: "Type message...",
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                          filled: true,
-                          fillColor: const Color(0xFF0A0F1E),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      decoration: const BoxDecoration(color: Color(0xFF009639), shape: BoxShape.circle),
-                      child: IconButton(
-                        icon: const Icon(Icons.send, color: Colors.white),
-                        onPressed: sendMessage,
-                      ),
-                    )
-                  ],
-                ),
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: sendMessage,
+                )
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-// ── Custom Chat Bubble Widget ─────────────────────────────────────
-class _ChatBubble extends StatelessWidget {
-  final String text;
-  final bool isMe;
-
-  const _ChatBubble({required this.text, required this.isMe});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isMe ? const Color(0xFF009639) : const Color(0xFF131929),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: isMe ? const Radius.circular(20) : Radius.zero,
-            bottomRight: isMe ? Radius.zero : const Radius.circular(20),
-          ),
-        ),
-        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 15)),
-      ),
-    );
-  }
-}
-
-// ── Background Blob Helper ────────────────────────────────────────
-class _Blob extends StatelessWidget {
-  final Color color;
-  const _Blob({required this.color});
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 200,
-        height: 200,
-        decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(colors: [color.withOpacity(0.15), Colors.transparent])),
-      );
 }

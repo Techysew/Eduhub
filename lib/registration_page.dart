@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'services/auth_service.dart';
+import 'services/auth_service.dart'; // Updated import path
 import 'verify_email_page.dart';
 
 class RegistrationPage extends StatefulWidget {
   final String role;
+
   const RegistrationPage({super.key, required this.role});
 
   @override
@@ -26,7 +27,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
   void showMessage(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   void checkPasswordRules(String password) {
@@ -49,7 +52,11 @@ class _RegistrationPageState extends State<RegistrationPage> {
       return;
     }
 
-    if (!(hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecialChar)) {
+    if (!(hasMinLength &&
+        hasUppercase &&
+        hasLowercase &&
+        hasNumber &&
+        hasSpecialChar)) {
       showMessage("❌ Weak password. Follow the rules below");
       return;
     }
@@ -66,6 +73,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
     setState(() => isLoading = false);
 
     if (result == "SUCCESS") {
+      showMessage(
+        "✅ Registration successful! Verify your email before login.",
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const VerifyEmailPage()),
@@ -73,121 +83,97 @@ class _RegistrationPageState extends State<RegistrationPage> {
       return;
     }
 
-    showMessage("❌ $result");
+    // Handle errors
+    switch (result) {
+      case "USERNAME_TAKEN":
+        showMessage("❌ Username already taken");
+        break;
+      case "EMAIL_EXISTS":
+        showMessage("❌ Email already exists");
+        break;
+      case "INVALID_EMAIL":
+        showMessage("❌ Invalid email");
+        break;
+      case "WEAK_PASSWORD":
+        showMessage("❌ Weak password");
+        break;
+      default:
+        showMessage("❌ $result");
+    }
+  }
+
+  Widget rule(bool ok, String text) {
+    return Row(
+      children: [
+        Icon(ok ? Icons.check : Icons.close,
+            color: ok ? Colors.green : Colors.red),
+        const SizedBox(width: 8),
+        Text(text),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text("Register as ${widget.role}", style: const TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text("Register as ${widget.role}"),
+        backgroundColor: const Color(0xFF009639),
+        automaticallyImplyLeading: false,
       ),
-      body: Stack(
-        children: [
-          Positioned(top: -50, right: -50, child: _Blob(color: const Color(0xFF009639))),
-          Positioned(bottom: -50, left: -50, child: _Blob(color: const Color(0xFF3B82F6))),
-          
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                _buildField(usernameController, "Username", Icons.person_outline),
-                const SizedBox(height: 15),
-                _buildField(emailController, "Email", Icons.email_outlined),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: passwordController,
-                  obscureText: !isPasswordVisible,
-                  onChanged: checkPasswordRules,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: "Password",
-                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                    filled: true,
-                    fillColor: const Color(0xFF131929),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.lock_outline, color: Colors.white24),
-                    suffixIcon: IconButton(
-                      icon: Icon(isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.white54),
-                      onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Rule List
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(color: const Color(0xFF131929), borderRadius: BorderRadius.circular(12)),
-                  child: Column(
-                    children: [
-                      _rule(hasMinLength, "8+ characters"),
-                      _rule(hasUppercase, "Contains uppercase"),
-                      _rule(hasLowercase, "Contains lowercase"),
-                      _rule(hasNumber, "Contains a number"),
-                      _rule(hasSpecialChar, "Contains special character"),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: isLoading ? null : register,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF009639),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text("Register", style: TextStyle(color: Colors.white, fontSize: 16)),
-                  ),
-                ),
-              ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: usernameController,
+              decoration: const InputDecoration(labelText: "Username"),
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: "Email"),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: passwordController,
+              obscureText: !isPasswordVisible,
+              onChanged: checkPasswordRules,
+              decoration: InputDecoration(
+                labelText: "Password",
+                suffixIcon: IconButton(
+                  icon: Icon(isPasswordVisible
+                      ? Icons.visibility
+                      : Icons.visibility_off),
+                  onPressed: () =>
+                      setState(() => isPasswordVisible = !isPasswordVisible),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            rule(hasMinLength, "8+ chars"),
+            rule(hasUppercase, "Uppercase"),
+            rule(hasLowercase, "Lowercase"),
+            rule(hasNumber, "Number"),
+            rule(hasSpecialChar, "Special char"),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : register,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF009639),
+                ),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Register",
+                        style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _buildField(TextEditingController controller, String label, IconData icon) => TextField(
-        controller: controller,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-          filled: true,
-          fillColor: const Color(0xFF131929),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          prefixIcon: Icon(icon, color: Colors.white24),
-        ),
-      );
-
-  Widget _rule(bool ok, String text) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      children: [
-        Icon(ok ? Icons.check_circle : Icons.circle_outlined, 
-             color: ok ? const Color(0xFF009639) : Colors.white24, size: 18),
-        const SizedBox(width: 10),
-        Text(text, style: TextStyle(color: ok ? Colors.white : Colors.white54, fontSize: 14)),
-      ],
-    ),
-  );
-}
-
-// Background Blob Helper
-class _Blob extends StatelessWidget {
-  final Color color;
-  const _Blob({required this.color});
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 200, height: 200,
-    decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [color.withOpacity(0.15), Colors.transparent])),
-  );
 }

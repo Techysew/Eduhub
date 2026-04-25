@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class CreateKuppiSessionPage extends StatefulWidget {
   final String tutorName;
+
+  /// Pass these two to enable edit mode
   final String? sessionId;
   final Map<String, dynamic>? existingData;
 
@@ -18,22 +20,25 @@ class CreateKuppiSessionPage extends StatefulWidget {
   State<CreateKuppiSessionPage> createState() => _CreateKuppiSessionPageState();
 }
 
-class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage>
-    with SingleTickerProviderStateMixin {
+class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController title, subject, topic, zoomLink, materials, description;
+
+  late final TextEditingController title;
+  late final TextEditingController subject;
+  late final TextEditingController topic;
+  late final TextEditingController zoomLink;
+  late final TextEditingController materials;
+  late final TextEditingController description;
+
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
   bool _loading = false;
-  late AnimationController _fadeController;
 
   bool get isEditMode => widget.sessionId != null;
 
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))..forward();
-
     final d = widget.existingData;
     title = TextEditingController(text: d?['title'] ?? '');
     subject = TextEditingController(text: d?['subject'] ?? '');
@@ -42,6 +47,7 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage>
     materials = TextEditingController(text: d?['materials'] ?? '');
     description = TextEditingController(text: d?['description'] ?? '');
 
+    // Pre-fill date AND time when editing
     if (d?['dateTime'] is Timestamp) {
       final dt = (d!['dateTime'] as Timestamp).toDate();
       selectedDate = DateTime(dt.year, dt.month, dt.day);
@@ -51,21 +57,40 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage>
 
   @override
   void dispose() {
-    title.dispose(); subject.dispose(); topic.dispose();
-    zoomLink.dispose(); materials.dispose(); description.dispose();
-    _fadeController.dispose();
+    title.dispose();
+    subject.dispose();
+    topic.dispose();
+    zoomLink.dispose();
+    materials.dispose();
+    description.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate() || selectedDate == null || selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all required fields')));
+    if (!_formKey.currentState!.validate() ||
+        selectedDate == null ||
+        selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Please fill all required fields, pick a date and a time'),
+        ),
+      );
       return;
     }
 
     setState(() => _loading = true);
+
     try {
-      final combined = DateTime(selectedDate!.year, selectedDate!.month, selectedDate!.day, selectedTime!.hour, selectedTime!.minute);
+      // Combine date + time into a single DateTime
+      final combined = DateTime(
+        selectedDate!.year,
+        selectedDate!.month,
+        selectedDate!.day,
+        selectedTime!.hour,
+        selectedTime!.minute,
+      );
+
       final payload = {
         'title': title.text.trim(),
         'subject': subject.text.trim(),
@@ -77,136 +102,236 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage>
       };
 
       if (isEditMode) {
-        await FirebaseFirestore.instance.collection('kuppi_sessions').doc(widget.sessionId).update(payload);
+        await FirebaseFirestore.instance
+            .collection('kuppi_sessions')
+            .doc(widget.sessionId)
+            .update(payload);
       } else {
+        final user = FirebaseAuth.instance.currentUser;
         await FirebaseFirestore.instance.collection('kuppi_sessions').add({
           ...payload,
-          'tutorId': FirebaseAuth.instance.currentUser?.uid,
+          'tutorId': user?.uid,
           'tutorName': widget.tutorName,
           'createdAt': Timestamp.now(),
           'isDeleted': false,
         });
       }
+
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text(isEditMode ? 'Session updated!' : 'Session created!')),
+      );
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(isEditMode ? 'Edit Session' : 'Create Session', style: const TextStyle(color: Colors.white)),
-      ),
-      body: Stack(
-        children: [
-          Positioned(top: -50, right: -50, child: _Blob(color: const Color(0xFF009639))),
-          Positioned(bottom: -50, left: -50, child: _Blob(color: const Color(0xFF3B82F6))),
-          
-          FadeTransition(
-            opacity: _fadeController,
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _buildField(title, 'Session Title', required: true),
-                  _buildField(subject, 'Subject'),
-                  _buildField(topic, 'Topic'),
-                  _buildField(zoomLink, 'Meeting Link'),
-                  _buildField(materials, 'Materials link'),
-                  _buildField(description, 'Description', maxLines: 3),
-
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _buildPickerBtn(Icons.calendar_today, selectedDate == null ? 'Pick date *' : '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}', _pickDate),
-                      const SizedBox(width: 12),
-                      _buildPickerBtn(Icons.access_time, selectedTime == null ? 'Pick time *' : selectedTime!.format(context), _pickTime),
-                    ],
-                  ),
-
-                  if (selectedDate != null && selectedTime != null)
-                    Container(
-                      margin: const EdgeInsets.only(top: 15),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: const Color(0xFF009639).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                      child: Text('Scheduled: ${selectedDate!.day}/${selectedDate!.month} at ${selectedTime!.format(context)}', 
-                        style: const TextStyle(color: Color(0xFF009639), fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                    ),
-
-                  const SizedBox(height: 30),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 7, 38, 44),
-                      minimumSize: const Size(double.infinity, 55),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _loading ? null : _submit,
-                    child: _loading ? const CircularProgressIndicator(color: Color.fromARGB(255, 228, 231, 227)) : Text(isEditMode ? 'Save Changes' : 'Create Session'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPickerBtn(IconData icon, String label, VoidCallback onTap) => Expanded(
-    child: OutlinedButton.icon(
-      icon: Icon(icon, size: 16, color: Colors.white),
-      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(color: Colors.white.withOpacity(0.2)),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-      ),
-      onPressed: onTap,
-    ),
-  );
-
-  Widget _buildField(TextEditingController controller, String label, {bool required = false, int maxLines = 1}) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: required ? '$label *' : label,
-        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-        filled: true,
-        fillColor: const Color(0xFF131929),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      ),
-      validator: required ? (v) => (v == null || v.isEmpty) ? 'Required' : null : null,
-    ),
-  );
-
   Future<void> _pickDate() async {
-    final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime(2030), initialDate: selectedDate ?? DateTime.now());
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2030),
+      initialDate: selectedDate ?? DateTime.now(),
+    );
     if (date != null) setState(() => selectedDate = date);
   }
 
   Future<void> _pickTime() async {
-    final time = await showTimePicker(context: context, initialTime: selectedTime ?? TimeOfDay.now());
+    final time = await showTimePicker(
+      context: context,
+      initialTime: selectedTime ?? TimeOfDay.now(),
+    );
     if (time != null) setState(() => selectedTime = time);
   }
-}
 
-class _Blob extends StatelessWidget {
-  final Color color;
-  const _Blob({required this.color});
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')} / '
+      '${d.month.toString().padLeft(2, '0')} / '
+      '${d.year}';
+
+  String _formatTime(TimeOfDay t) {
+    final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final minute = t.minute.toString().padLeft(2, '0');
+    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
-    width: 200, height: 200,
-    decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [color.withOpacity(0.15), Colors.transparent])),
-  );
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        title: Text(isEditMode ? 'Edit Kuppi Session' : 'Create Kuppi Session'),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF009639), Color(0xFF00C853)],
+            ),
+          ),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              _buildField(title, 'Session Title', required: true),
+              _buildField(subject, 'Subject'),
+              _buildField(topic, 'Topic'),
+              _buildField(zoomLink, 'Meeting Link (Zoom / Meet)'),
+              _buildField(materials, 'Materials link (optional)'),
+              _buildField(description, 'Description', maxLines: 3),
+
+              const SizedBox(height: 8),
+
+              // ── Date + Time pickers side by side ──
+              Row(
+                children: [
+                  // Date picker
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Text(
+                        selectedDate == null
+                            ? 'Pick date *'
+                            : _formatDate(selectedDate!),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF009639)),
+                        foregroundColor: const Color(0xFF009639),
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _pickDate,
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // Time picker
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.access_time, size: 18),
+                      label: Text(
+                        selectedTime == null
+                            ? 'Pick time *'
+                            : _formatTime(selectedTime!),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF009639)),
+                        foregroundColor: const Color(0xFF009639),
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _pickTime,
+                    ),
+                  ),
+                ],
+              ),
+
+              // Show combined summary once both are picked
+              if (selectedDate != null && selectedTime != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFF009639), width: 0.6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle,
+                          color: Color(0xFF009639), size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Session on ${_formatDate(selectedDate!)} at ${_formatTime(selectedTime!)}',
+                        style: const TextStyle(
+                          color: Color(0xFF009639),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF009639),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          isEditMode ? 'Save Changes' : 'Create Session',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(
+    TextEditingController controller,
+    String label, {
+    bool required = false,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: required ? '$label *' : label,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF009639)),
+          ),
+        ),
+        validator: required
+            ? (v) => (v == null || v.isEmpty) ? 'Required' : null
+            : null,
+      ),
+    );
+  }
 }
