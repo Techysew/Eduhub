@@ -4,8 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class CreateKuppiSessionPage extends StatefulWidget {
   final String tutorName;
-
-  /// Pass these two to enable edit mode
   final String? sessionId;
   final Map<String, dynamic>? existingData;
 
@@ -20,7 +18,8 @@ class CreateKuppiSessionPage extends StatefulWidget {
   State<CreateKuppiSessionPage> createState() => _CreateKuppiSessionPageState();
 }
 
-class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
+class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController title;
@@ -33,6 +32,8 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
   bool _loading = false;
+
+  late AnimationController _fadeController;
 
   bool get isEditMode => widget.sessionId != null;
 
@@ -47,16 +48,21 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     materials = TextEditingController(text: d?['materials'] ?? '');
     description = TextEditingController(text: d?['description'] ?? '');
 
-    // Pre-fill date AND time when editing
     if (d?['dateTime'] is Timestamp) {
       final dt = (d!['dateTime'] as Timestamp).toDate();
       selectedDate = DateTime(dt.year, dt.month, dt.day);
       selectedTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
     }
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
   }
 
   @override
   void dispose() {
+    _fadeController.dispose();
     title.dispose();
     subject.dispose();
     topic.dispose();
@@ -66,23 +72,29 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     super.dispose();
   }
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF1E2A45),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() ||
         selectedDate == null ||
         selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Please fill all required fields, pick a date and a time'),
-        ),
-      );
+      _showSnackBar('Please fill all required fields, pick a date and a time');
       return;
     }
 
     setState(() => _loading = true);
 
     try {
-      // Combine date + time into a single DateTime
       final combined = DateTime(
         selectedDate!.year,
         selectedDate!.month,
@@ -118,16 +130,11 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text(isEditMode ? 'Session updated!' : 'Session created!')),
-      );
+      _showSnackBar(isEditMode ? 'Session updated!' : 'Session created!');
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      _showSnackBar('Error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -139,6 +146,15 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime(2030),
       initialDate: selectedDate ?? DateTime.now(),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF3B82F6),
+            surface: Color(0xFF131929),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (date != null) setState(() => selectedDate = date);
   }
@@ -147,11 +163,21 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     final time = await showTimePicker(
       context: context,
       initialTime: selectedTime ?? TimeOfDay.now(),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF3B82F6),
+            surface: Color(0xFF131929),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (time != null) setState(() => selectedTime = time);
   }
 
-  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')} / '
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')} / '
       '${d.month.toString().padLeft(2, '0')} / '
       '${d.year}';
 
@@ -162,175 +188,493 @@ class _CreateKuppiSessionPageState extends State<CreateKuppiSessionPage> {
     return '$hour:$minute $period';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: Text(isEditMode ? 'Edit Kuppi Session' : 'Create Kuppi Session'),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF009639), Color(0xFF00C853)],
+  // ── Dark text field ───────────────────────────────────────────────────────
+  Widget _darkField(
+    TextEditingController controller,
+    String label, {
+    bool required = false,
+    int maxLines = 1,
+    IconData? icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            labelText: required ? '$label *' : label,
+            labelStyle: TextStyle(
+                color: Colors.white.withOpacity(0.35), fontSize: 13),
+            prefixIcon: icon != null
+                ? Icon(icon, color: Colors.white.withOpacity(0.3), size: 20)
+                : null,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: maxLines > 1 ? 14 : 16,
             ),
           ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              _buildField(title, 'Session Title', required: true),
-              _buildField(subject, 'Subject'),
-              _buildField(topic, 'Topic'),
-              _buildField(zoomLink, 'Meeting Link (Zoom / Meet)'),
-              _buildField(materials, 'Materials link (optional)'),
-              _buildField(description, 'Description', maxLines: 3),
-
-              const SizedBox(height: 8),
-
-              // ── Date + Time pickers side by side ──
-              Row(
-                children: [
-                  // Date picker
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.calendar_today, size: 18),
-                      label: Text(
-                        selectedDate == null
-                            ? 'Pick date *'
-                            : _formatDate(selectedDate!),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF009639)),
-                        foregroundColor: const Color(0xFF009639),
-                        minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: _pickDate,
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Time picker
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.access_time, size: 18),
-                      label: Text(
-                        selectedTime == null
-                            ? 'Pick time *'
-                            : _formatTime(selectedTime!),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF009639)),
-                        foregroundColor: const Color(0xFF009639),
-                        minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: _pickTime,
-                    ),
-                  ),
-                ],
-              ),
-
-              // Show combined summary once both are picked
-              if (selectedDate != null && selectedTime != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: const Color(0xFF009639), width: 0.6),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle,
-                          color: Color(0xFF009639), size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Session on ${_formatDate(selectedDate!)} at ${_formatTime(selectedTime!)}',
-                        style: const TextStyle(
-                          color: Color(0xFF009639),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF009639),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          isEditMode ? 'Save Changes' : 'Create Session',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                ),
-              ),
-            ],
-          ),
+          validator: required
+              ? (v) => (v == null || v.isEmpty) ? 'Required' : null
+              : null,
         ),
       ),
     );
   }
 
-  Widget _buildField(
-    TextEditingController controller,
-    String label, {
-    bool required = false,
-    int maxLines = 1,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: required ? '$label *' : label,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0F1E),
+      body: Stack(
+        children: [
+          // ── Background blobs ──────────────────────────
+          Positioned(
+            top: -80, right: -60,
+            child: Container(
+              width: 260, height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFF3B82F6).withOpacity(0.13),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade200),
+          Positioned(
+            bottom: -100, left: -70,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFF8B5CF6).withOpacity(0.1),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF009639)),
+
+          // ── Content ───────────────────────────────────
+          FadeTransition(
+            opacity: _fadeController,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // ── Header ──────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.07),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.08)),
+                            ),
+                            child: Icon(Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white.withOpacity(0.8),
+                                size: 18),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isEditMode
+                                  ? 'Edit Kuppi Session'
+                                  : 'Create Kuppi Session',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.4,
+                              ),
+                            ),
+                            Text(
+                              isEditMode
+                                  ? 'Update session details'
+                                  : 'Schedule a new live session',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Form ────────────────────────────
+                  Expanded(
+                    child: Form(
+                      key: _formKey,
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ── Session details card ─────────────
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF131929),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: Colors.white.withOpacity(0.07)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF3B82F6)
+                                        .withOpacity(0.08),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Section label
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 4, height: 18,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFF3B82F6),
+                                              Color(0xFF06B6D4)
+                                            ],
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text('Session Details',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          )),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+
+                                  _darkField(title, 'Session Title',
+                                      required: true,
+                                      icon: Icons.video_camera_front_rounded),
+                                  _darkField(subject, 'Subject',
+                                      icon: Icons.school_rounded),
+                                  _darkField(topic, 'Topic',
+                                      icon: Icons.topic_rounded),
+                                  _darkField(zoomLink,
+                                      'Meeting Link (Zoom / Meet)',
+                                      icon: Icons.link_rounded),
+                                  _darkField(materials,
+                                      'Materials link (optional)',
+                                      icon: Icons.attach_file_rounded),
+                                  _darkField(description, 'Description',
+                                      maxLines: 3,
+                                      icon: Icons.notes_rounded),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // ── Date & Time card ─────────────────
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF131929),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: Colors.white.withOpacity(0.07)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF8B5CF6)
+                                        .withOpacity(0.08),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 4, height: 18,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFF8B5CF6),
+                                              Color(0xFFEC4899)
+                                            ],
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text('Date & Time',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          )),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Picker buttons
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onTap: _pickDate,
+                                          child: Container(
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              color: selectedDate != null
+                                                  ? const Color(0xFF3B82F6)
+                                                      .withOpacity(0.12)
+                                                  : Colors.white
+                                                      .withOpacity(0.05),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: selectedDate != null
+                                                    ? const Color(0xFF3B82F6)
+                                                        .withOpacity(0.4)
+                                                    : Colors.white
+                                                        .withOpacity(0.08),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                    Icons
+                                                        .calendar_today_rounded,
+                                                    size: 16,
+                                                    color: selectedDate != null
+                                                        ? const Color(
+                                                            0xFF3B82F6)
+                                                        : Colors.white
+                                                            .withOpacity(0.4)),
+                                                const SizedBox(width: 7),
+                                                Text(
+                                                  selectedDate == null
+                                                      ? 'Pick Date *'
+                                                      : _formatDate(
+                                                          selectedDate!),
+                                                  style: TextStyle(
+                                                    color: selectedDate != null
+                                                        ? const Color(
+                                                            0xFF3B82F6)
+                                                        : Colors.white
+                                                            .withOpacity(0.4),
+                                                    fontSize: 13,
+                                                    fontWeight:
+                                                        selectedDate != null
+                                                            ? FontWeight.w600
+                                                            : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onTap: _pickTime,
+                                          child: Container(
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              color: selectedTime != null
+                                                  ? const Color(0xFF3B82F6)
+                                                      .withOpacity(0.12)
+                                                  : Colors.white
+                                                      .withOpacity(0.05),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: selectedTime != null
+                                                    ? const Color(0xFF3B82F6)
+                                                        .withOpacity(0.4)
+                                                    : Colors.white
+                                                        .withOpacity(0.08),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                    Icons.access_time_rounded,
+                                                    size: 16,
+                                                    color: selectedTime != null
+                                                        ? const Color(
+                                                            0xFF3B82F6)
+                                                        : Colors.white
+                                                            .withOpacity(0.4)),
+                                                const SizedBox(width: 7),
+                                                Text(
+                                                  selectedTime == null
+                                                      ? 'Pick Time *'
+                                                      : _formatTime(
+                                                          selectedTime!),
+                                                  style: TextStyle(
+                                                    color: selectedTime != null
+                                                        ? const Color(
+                                                            0xFF3B82F6)
+                                                        : Colors.white
+                                                            .withOpacity(0.4),
+                                                    fontSize: 13,
+                                                    fontWeight:
+                                                        selectedTime != null
+                                                            ? FontWeight.w600
+                                                            : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Combined summary
+                                  if (selectedDate != null &&
+                                      selectedTime != null) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981)
+                                            .withOpacity(0.1),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        border: Border.all(
+                                            color: const Color(0xFF10B981)
+                                                .withOpacity(0.3)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Color(0xFF10B981),
+                                              size: 16),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Session on ${_formatDate(selectedDate!)} at ${_formatTime(selectedTime!)}',
+                                              style: const TextStyle(
+                                                color: Color(0xFF10B981),
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            // ── Submit button ────────────────────
+                            GestureDetector(
+                              onTap: _loading ? null : _submit,
+                              child: Container(
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  gradient: _loading
+                                      ? null
+                                      : const LinearGradient(
+                                          colors: [
+                                            Color(0xFF3B82F6),
+                                            Color(0xFF06B6D4),
+                                          ],
+                                        ),
+                                  color: _loading
+                                      ? Colors.white.withOpacity(0.06)
+                                      : null,
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: _loading
+                                      ? null
+                                      : [
+                                          BoxShadow(
+                                            color: const Color(0xFF3B82F6)
+                                                .withOpacity(0.3),
+                                            blurRadius: 14,
+                                            offset: const Offset(0, 5),
+                                          ),
+                                        ],
+                                ),
+                                child: Center(
+                                  child: _loading
+                                      ? const SizedBox(
+                                          width: 22, height: 22,
+                                          child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2.5),
+                                        )
+                                      : Text(
+                                          isEditMode
+                                              ? 'Save Changes'
+                                              : 'Create Session',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        validator: required
-            ? (v) => (v == null || v.isEmpty) ? 'Required' : null
-            : null,
+        ],
       ),
     );
   }
